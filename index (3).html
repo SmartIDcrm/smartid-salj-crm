@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SmartID Sälj-CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --g:#1E5C4E;--gd:#1A3D30;--gm:#2D7A65;--gt:#4AAF96;
+  --gold:#C8A84B;--w:#fff;--bg:#F4F8F6;--bg2:#EBF2EF;
+  --br:#C8DDD4;--tx:#1A3D30;--mu:#557A6A;
+  --err:#C0392B;--errl:#FDEDEC;
+  --warn:#E67E22;--warnl:#FDF2E9;
+  --sb:240px;
+  --blue:#3B7DD8;--bluel:#E8F1FB;
+  --purple:#7C5BC9;--purplel:#EFEAFC;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);font-size:14px;}
+
+/* LOGIN */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--gd),var(--g));padding:1rem;}
+.login-card{background:var(--w);border-radius:16px;padding:2.5rem;width:100%;max-width:380px;box-shadow:0 12px 48px rgba(0,0,0,.25);}
+.login-logo{font-size:28px;font-weight:700;color:var(--g);margin-bottom:.2rem;}
+.login-logo span{color:var(--gt);}
+.login-sub{font-size:13px;color:var(--mu);margin-bottom:2rem;}
+.login-card label{display:block;font-size:11px;font-weight:600;color:var(--mu);margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase;}
+.login-card input{width:100%;padding:10px 12px;border:1.5px solid var(--br);border-radius:8px;font-size:14px;color:var(--tx);background:var(--bg);margin-bottom:14px;outline:none;transition:border-color .2s;}
+.login-card input:focus{border-color:var(--gt);}
+.login-btn{width:100%;padding:11px;background:var(--g);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px;transition:opacity .2s;}
+.login-btn:hover{opacity:.88;}
+.login-btn:disabled{opacity:.55;cursor:default;}
+.login-err{color:var(--err);font-size:12px;margin-top:10px;display:none;text-align:center;}
+
+/* APP */
+.shell{display:none;height:100vh;overflow:hidden;}
+.shell.show{display:flex;}
+
+/* SIDEBAR */
+.sidebar{width:var(--sb);flex-shrink:0;background:var(--gd);display:flex;flex-direction:column;height:100%;overflow-y:auto;}
+.sb-hdr{padding:1.4rem 1.2rem 1rem;border-bottom:1px solid rgba(255,255,255,.07);}
+.sb-logo{font-size:18px;font-weight:700;color:#fff;}
+.sb-logo span{color:var(--gt);}
+.sb-tag{font-size:11px;color:var(--gt);margin-top:2px;font-weight:600;letter-spacing:.05em;}
+.sb-user{font-size:12px;color:rgba(255,255,255,.55);margin-top:.7rem;display:flex;align-items:center;gap:8px;padding:6px 4px;}
+.sb-user-avatar{width:26px;height:26px;border-radius:50%;background:var(--gt);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.sb-role{font-size:10px;color:var(--gt);font-weight:700;letter-spacing:.05em;}
+.sb-nav{flex:1;padding:.7rem .5rem;}
+.sb-sec{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.25);padding:.5rem .8rem .25rem;margin-top:.4rem;}
+.sbi{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.55);font-size:13px;font-weight:500;margin-bottom:2px;background:transparent;border:none;width:100%;text-align:left;transition:all .15s;}
+.sbi:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85);}
+.sbi.active{background:rgba(255,255,255,.12);color:#fff;}
+.sbi svg{flex-shrink:0;opacity:.7;}
+.sbi.active svg{opacity:1;color:var(--gt);}
+.sbi .soon{margin-left:auto;font-size:9px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.5);padding:2px 6px;border-radius:4px;font-weight:600;letter-spacing:.03em;}
+.sb-ftr{padding:.7rem .5rem;border-top:1px solid rgba(255,255,255,.06);}
+.logout-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;background:transparent;border:none;color:rgba(255,255,255,.45);font-size:12px;cursor:pointer;border-radius:6px;transition:all .2s;}
+.logout-btn:hover{background:rgba(255,255,255,.08);color:rgba(255,255,255,.8);}
+
+/* MAIN */
+.main{flex:1;height:100%;overflow-y:auto;display:flex;flex-direction:column;}
+.ph{padding:1.1rem 1.6rem;background:var(--w);border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:1rem;flex-wrap:wrap;}
+.ph-t{font-size:18px;font-weight:600;}
+.ph-s{font-size:12px;color:var(--mu);margin-top:2px;}
+.ca{flex:1;padding:1.4rem 1.6rem;}
+.role-pill{font-size:12px;color:var(--gold);background:#FAEEDA;padding:3px 9px;border-radius:5px;font-weight:600;margin-left:6px;vertical-align:middle;}
+
+/* KPI CARDS */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:1.5rem;}
+.kpi{background:var(--w);border:1px solid var(--br);border-radius:14px;padding:1.2rem 1.3rem;}
+.kpi-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:.7rem;}
+.kpi-ic.green{background:#EAF4EE;color:var(--g);}
+.kpi-ic.gold{background:#FAEEDA;color:var(--gold);}
+.kpi-ic.blue{background:var(--bluel);color:var(--blue);}
+.kpi-ic.purple{background:var(--purplel);color:var(--purple);}
+.kpi-ic.orange{background:var(--warnl);color:var(--warn);}
+.kpi-l{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:.3rem;}
+.kpi-v{font-size:28px;font-weight:700;color:var(--tx);line-height:1;}
+.kpi-sub{font-size:11px;color:var(--mu);margin-top:.4rem;}
+
+/* SECTION CARDS */
+.sec{background:var(--w);border:1px solid var(--br);border-radius:14px;overflow:hidden;margin-bottom:1.2rem;}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.4rem;border-bottom:1px solid var(--bg2);gap:1rem;}
+.sec-hdr h3{font-size:14px;font-weight:600;}
+.sec-body{padding:1.2rem 1.4rem;}
+
+.empty{text-align:center;padding:2.4rem 1rem;color:var(--mu);}
+.empty p{font-size:14px;font-weight:600;}
+.empty small{font-size:12px;}
+
+/* NOTICE */
+.notice{border-radius:10px;padding:12px 16px;margin-bottom:1.2rem;font-size:13px;line-height:1.5;}
+.notice.warn{background:var(--warnl);border:1px solid #F0C090;border-left:3px solid var(--warn);color:var(--tx);}
+
+/* PLACEHOLDER (kommande etapper) */
+.ph-soon{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4rem 1rem;}
+.ph-soon-ic{font-size:48px;margin-bottom:1rem;}
+.ph-soon h2{font-size:18px;font-weight:600;margin-bottom:.4rem;}
+.ph-soon p{font-size:13px;color:var(--mu);max-width:360px;line-height:1.6;}
+
+/* LOADER */
+.loader{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;background:var(--bg);}
+.spin{width:34px;height:34px;border:3px solid var(--bg2);border-top-color:var(--g);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loader p{font-size:13px;color:var(--mu);}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.fade-in{animation:fadeIn .5s ease-out forwards;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-thumb{background:var(--br);border-radius:3px;}
+
+/* ===== ETAPP 2: knappar, formulär, tabeller ===== */
+.btn{padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:all .18s;}
+.btn:disabled{opacity:.55;cursor:default;}
+.btn-p{background:var(--g);color:#fff;}
+.btn-p:hover{background:var(--gm);}
+.btn-d{background:transparent;color:var(--err);border:1px solid #F09595;}
+.btn-d:hover{background:var(--errl);}
+.fl{display:flex;flex-direction:column;gap:5px;}
+.fl label{font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;}
+.fl input{padding:8px 10px;border:1px solid var(--br);border-radius:8px;background:var(--bg);color:var(--tx);font-size:14px;outline:none;font-weight:500;}
+.fl input:focus{border-color:var(--gt);}
+.daily-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+.salj-row{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:10px;padding:.7rem 0;border-bottom:1px solid var(--bg2);align-items:center;}
+.salj-row:last-child{border:none;}
+.salj-name{font-size:13px;font-weight:600;color:var(--tx);}
+.prov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;}
+.prov-item{padding:11px 13px;background:var(--bg);border:1px solid var(--br);border-radius:8px;display:flex;justify-content:space-between;align-items:center;}
+.prov-item .pl{font-size:11px;color:var(--mu);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.prov-item .pv{font-size:14px;font-weight:700;color:var(--g);}
+.htable-wrap{overflow-x:auto;}
+.htable{width:100%;border-collapse:collapse;font-size:13px;min-width:720px;}
+.htable thead th{background:var(--bg2);color:var(--mu);padding:9px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--br);}
+.htable thead th:not(:first-child){text-align:center;}
+.htable tbody td{padding:10px 12px;border-bottom:1px solid var(--bg2);white-space:nowrap;}
+.htable tbody td:not(:first-child){text-align:center;}
+.htable tbody tr:hover td{background:var(--bg);}
+.h-day{font-weight:600;font-size:13px;}
+.h-num{font-weight:600;font-size:14px;color:var(--tx);}
+.h-num.salj{color:var(--g);}
+.h-num.no{color:var(--mu);}
+.h-num.cb{color:var(--blue);}
+.tot-row td{background:var(--bg2);font-weight:700;border-top:2px solid var(--br);}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader" class="loader" style="display:none;">
+  <div class="spin"></div>
+  <p>Laddar SmartID Sälj-CRM…</p>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none;">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">Smart<span>ID</span></div>
+      <div class="login-sub">Sälj-CRM · Logga in</div>
+      <label>E-post</label>
+      <input id="li-email" type="email" placeholder="namn@smartid.se" autocomplete="username">
+      <label>Lösenord</label>
+      <input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+      <button class="login-btn" id="login-btn">Logga in</button>
+      <div class="login-err" id="login-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="shell" id="app">
+  <aside class="sidebar">
+    <div class="sb-hdr">
+      <div class="sb-logo">Smart<span>ID</span></div>
+      <div class="sb-tag">SÄLJ-CRM</div>
+      <div class="sb-user">
+        <div class="sb-user-avatar" id="sb-avatar">–</div>
+        <div>
+          <div id="sb-username">–</div>
+          <div class="sb-role" id="sb-role">–</div>
+        </div>
+      </div>
+    </div>
+    <nav class="sb-nav" id="sb-nav">
+      <div class="sb-sec">Översikt</div>
+      <button class="sbi active" data-tab="dashboard"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="5" height="6" rx="1"/><rect x="9" y="2" width="5" height="3" rx="1"/><rect x="2" y="10" width="5" height="4" rx="1"/><rect x="9" y="7" width="5" height="7" rx="1"/></svg><span>Dashboard</span></button>
+      <button class="sbi" data-tab="dagligt"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="12" height="11" rx="1"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="5" y1="2" x2="5" y2="4"/><line x1="11" y1="2" x2="11" y2="4"/></svg><span>Daglig rapport</span></button>
+      <button class="sbi" data-tab="historik"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10,9"/></svg><span>Historik</span></button>
+      <button class="sbi" data-tab="provision"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h10v10H3z"/><path d="M6 6l2 2 2-2M6 9l2 2 2-2"/></svg><span>Provision</span><span class="soon">Snart</span></button>
+      <div class="sb-sec">Utbildning</div>
+      <button class="sbi" data-tab="produktutbildning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12v9H2z"/><path d="M5 7h6M5 10h4"/></svg><span>Produktutbildning</span><span class="soon">Snart</span></button>
+      <button class="sbi" data-tab="saljutbildning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l4-4 3 3 4-4"/><circle cx="13" cy="3" r="1.5"/></svg><span>Säljutbildning</span><span class="soon">Snart</span></button>
+      <button class="sbi" data-tab="ljudfiler"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v12"/><path d="M5 5v6"/><path d="M11 5v6"/><path d="M2 7v2"/><path d="M14 7v2"/></svg><span>Ljudfiler</span><span class="soon">Snart</span></button>
+      <div class="sb-sec">Verktyg</div>
+      <button class="sbi" data-tab="mal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg><span>Mål &amp; Streak</span><span class="soon">Snart</span></button>
+      <button class="sbi" data-tab="tavlingar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2h6v3a3 3 0 0 1-6 0z"/><path d="M5 3H3v1a2 2 0 0 0 2 2"/><path d="M11 3h2v1a2 2 0 0 1-2 2"/><line x1="8" y1="8" x2="8" y2="11"/><path d="M5.5 14h5l-.5-3h-4z"/></svg><span>Tävlingar</span><span class="soon">Snart</span></button>
+      <div class="sb-sec coach-only">Coach-verktyg</div>
+      <button class="sbi coach-only" data-tab="team"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.5"/><circle cx="11" cy="6" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M7 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg><span>Säljare</span><span class="soon">Snart</span></button>
+      <button class="sbi coach-only" data-tab="teamstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 14h12"/><rect x="3" y="8" width="2" height="6"/><rect x="7" y="5" width="2" height="9"/><rect x="11" y="2" width="2" height="12"/></svg><span>Statistik säljare</span><span class="soon">Snart</span></button>
+      <button class="sbi coach-only" data-tab="allstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5"/></svg><span>All statistik</span><span class="soon">Snart</span></button>
+    </nav>
+    <div class="sb-ftr">
+      <button class="logout-btn" id="logout-btn">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/><path d="M11 11l3-3-3-3"/><line x1="14" y1="8" x2="6" y2="8"/></svg>
+        <span>Logga ut</span>
+      </button>
+    </div>
+  </aside>
+  <main class="main" id="main"></main>
+</div>
+
+<script>
+/* ============================================================
+   SmartID Sälj-CRM — etapp 1
+   Inloggning + appskal + säljardashboard, kopplat till Supabase.
+   ============================================================ */
+const SB_URL='https://hfbhoufqvozbxkqlldzl.supabase.co';
+const SB_KEY='sb_publishable_jdNOJLg2OOeyQfj8yLXIoA_6ySKL5tn';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+
+/* Provisionssatser per roll (euro per sålt paket/tillägg) */
+const ROLES={
+  saljare:{s189:5,s229:10,s279:15,a49:5,a79:5,a99:5},
+  coach:  {s189:5,s229:10,s279:15,a49:2,a79:2,a99:2}
+};
+/* Priser (kr/mån) – för orderbelopp */
+const PRICES={s189:189,s229:229,s279:279,a49:49,a79:79,a99:99};
+
+/* Appens state */
+const S={user:null,profile:null,seller:null,role:'saljare',
+  dailyStats:[],scoreboard:[],tab:'dashboard',reportDate:null,loadError:null};
+
+/* ---- Hjälpfunktioner ---- */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmtMin(min){min=Math.max(0,Math.round(min||0));const h=Math.floor(min/60),m=min%60;return h+'h '+m+'m';}
+function show(id,disp){document.getElementById(id).style.display=disp||'';}
+function hide(id){document.getElementById(id).style.display='none';}
+function sum(arr,k){return arr.reduce((a,d)=>a+(Number(d[k])||0),0);}
+function n(v){return Number(v)||0;}
+function emptyDay(date){return{date:date,samtal:0,nej:0,callbacks:0,aktiv_min:0,
+  sold_s189:0,sold_s229:0,sold_s279:0,sold_a49:0,sold_a79:0,sold_a99:0,
+  ang_s189:0,ang_s229:0,ang_s279:0,ang_a49:0,ang_a79:0,ang_a99:0};}
+function dayTotalSalj(d){return n(d.sold_s189)+n(d.sold_s229)+n(d.sold_s279);}
+function dayTotalAddon(d){return n(d.sold_a49)+n(d.sold_a79)+n(d.sold_a99);}
+function dayTotalAng(d){return n(d.ang_s189)+n(d.ang_s229)+n(d.ang_s279)+n(d.ang_a49)+n(d.ang_a79)+n(d.ang_a99);}
+function dayProvision(d){const r=ROLES[S.role==='coach'?'coach':'saljare'];
+  return n(d.sold_s189)*r.s189+n(d.sold_s229)*r.s229+n(d.sold_s279)*r.s279
+        +n(d.sold_a49)*r.a49+n(d.sold_a79)*r.a79+n(d.sold_a99)*r.a99;}
+function dayOrderbelopp(d){return n(d.sold_s189)*PRICES.s189+n(d.sold_s229)*PRICES.s229+n(d.sold_s279)*PRICES.s279
+        +n(d.sold_a49)*PRICES.a49+n(d.sold_a79)*PRICES.a79+n(d.sold_a99)*PRICES.a99;}
+function fmtDate(s){
+  if(!s)return '';
+  const d=new Date(s+'T00:00:00');
+  if(isNaN(d.getTime()))return s;
+  const man=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+  const dag=['sön','mån','tis','ons','tor','fre','lör'];
+  return dag[d.getDay()]+' '+d.getDate()+' '+man[d.getMonth()];
+}
+
+/* ============================================================
+   INLOGGNING
+   ============================================================ */
+async function doLogin(){
+  const email=document.getElementById('li-email').value.trim();
+  const pass=document.getElementById('li-pass').value;
+  const errEl=document.getElementById('login-err');
+  const btn=document.getElementById('login-btn');
+  errEl.style.display='none';
+  if(!email||!pass){errEl.textContent='Fyll i e-post och lösenord.';errEl.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Loggar in…';
+  try{
+    const {error}=await sb.auth.signInWithPassword({email,password:pass});
+    if(error){
+      errEl.textContent='Inloggning misslyckades: '+error.message;
+      errEl.style.display='block';
+      btn.disabled=false;btn.textContent='Logga in';
+      return;
+    }
+    await bootstrap();
+  }catch(e){
+    errEl.textContent='Något gick fel: '+(e.message||e);
+    errEl.style.display='block';
+    btn.disabled=false;btn.textContent='Logga in';
+  }
+}
+
+async function doLogout(){
+  try{await sb.auth.signOut();}catch(e){}
+  location.reload();
+}
+
+/* ============================================================
+   BOOTSTRAP — hämtar användare, profil, säljare och dashboard-data
+   ============================================================ */
+async function bootstrap(){
+  showOnly('loader');
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    if(!session){showOnly('login-screen');return;}
+    S.user=session.user;
+
+    /* Profil → roll */
+    const {data:prof}=await sb.from('profiles').select('*').eq('id',S.user.id).maybeSingle();
+    S.profile=prof||null;
+    S.role=(prof&&prof.role==='coach')?'coach':'saljare';
+
+    /* Säljarrad – via profiles.seller_id, annars via sellers.user_id */
+    let seller=null;
+    if(prof&&prof.seller_id){
+      const {data}=await sb.from('sellers').select('*').eq('id',prof.seller_id).maybeSingle();
+      seller=data||null;
+    }
+    if(!seller){
+      const {data}=await sb.from('sellers').select('*').eq('user_id',S.user.id).maybeSingle();
+      seller=data||null;
+    }
+    S.seller=seller;
+
+    await loadDashboardData();
+    showOnly('app');
+    paintSidebar();
+    render();
+  }catch(e){
+    S.loadError=e.message||String(e);
+    showOnly('app');
+    paintSidebar();
+    render();
+  }
+}
+
+async function loadDashboardData(){
+  S.loadError=null;
+  /* Egen dagsstatistik */
+  if(S.seller){
+    const {data,error}=await sb.from('seller_daily_stats')
+      .select('*').eq('seller_id',S.seller.id).order('date',{ascending:true});
+    if(error)S.loadError=error.message;
+    S.dailyStats=data||[];
+  }else{
+    S.dailyStats=[];
+  }
+  /* Scoreboard (RPC – returnerar sälj/tillägg per säljare) */
+  try{
+    const {data,error}=await sb.rpc('salj_scoreboard');
+    if(error)throw error;
+    S.scoreboard=(data||[]).map(x=>({
+      seller_id:x.seller_id,name:x.name,
+      salj:Number(x.salj)||0,tillagg:Number(x.tillagg)||0
+    }));
+  }catch(e){
+    S.scoreboard=[];
+  }
+}
+
+/* ============================================================
+   APP-SKAL
+   ============================================================ */
+function showOnly(id){
+  ['loader','login-screen','app'].forEach(x=>{
+    const el=document.getElementById(x);
+    if(x===id){el.style.display=(x==='app')?'flex':( x==='loader'?'flex':'block');el.classList&&el.classList.add('show');}
+    else{el.style.display='none';el.classList&&el.classList.remove('show');}
+  });
+}
+
+function paintSidebar(){
+  const name=(S.seller&&S.seller.name)||(S.profile&&S.profile.full_name)||(S.user&&S.user.email)||'Användare';
+  document.getElementById('sb-username').textContent=name;
+  document.getElementById('sb-avatar').textContent=(name[0]||'?').toUpperCase();
+  document.getElementById('sb-role').textContent=S.role==='coach'?'COACH':'SÄLJARE';
+  /* Coach-only synlighet */
+  const isCoach=S.role==='coach';
+  document.querySelectorAll('.coach-only').forEach(el=>{el.style.display=isCoach?'':'none';});
+}
+
+function render(){
+  const main=document.getElementById('main');
+  if(S.tab==='dashboard')renderDashboard(main);
+  else if(S.tab==='dagligt')renderDagligt(main);
+  else if(S.tab==='historik')renderHistorik(main);
+  else renderPlaceholder(main,S.tab);
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function renderDashboard(main){
+  const isCoach=S.role==='coach';
+  const days=S.dailyStats;
+  const totSamtal=sum(days,'samtal');
+  const totSalj=sum(days,'sold_s189')+sum(days,'sold_s229')+sum(days,'sold_s279');
+  const totAktiv=sum(days,'aktiv_min');
+  const r=ROLES[isCoach?'coach':'saljare'];
+  const totProv=days.reduce((a,d)=>a
+    +(Number(d.sold_s189)||0)*r.s189+(Number(d.sold_s229)||0)*r.s229+(Number(d.sold_s279)||0)*r.s279
+    +(Number(d.sold_a49)||0)*r.a49+(Number(d.sold_a79)||0)*r.a79+(Number(d.sold_a99)||0)*r.a99,0);
+  const nDays=days.length;
+  const avgSamtal=nDays?Math.round(totSamtal/nDays):0;
+  const avgSalj=nDays?(totSalj/nDays).toFixed(1):'0';
+  const avgProv=nDays?Math.round(totProv/nDays):0;
+  const conv=totSamtal?((totSalj/totSamtal)*100).toFixed(1):'0';
+
+  let notice='';
+  if(S.loadError){
+    notice=`<div class="notice warn">⚠️ Kunde inte hämta all data: ${esc(S.loadError)}</div>`;
+  }else if(!S.seller){
+    notice=`<div class="notice warn">⚠️ Ditt konto är inte kopplat till en säljarprofil ännu. Be coachen länka kontot (auth → sellers) så fylls dina siffror i.</div>`;
+  }
+
+  main.innerHTML=`
+    <div class="ph">
+      <div>
+        <div class="ph-t">Dashboard <span class="role-pill">${isCoach?'Coach':'Säljare'}</span></div>
+        <div class="ph-s">Översikt över ${isCoach?'din och teamets':'din'} försäljning</div>
+      </div>
+    </div>
+    <div class="ca">
+      ${notice}
+      ${isCoach?'<h2 style="font-size:13px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem;">👤 Min statistik</h2>':''}
+      <div class="kpi-grid">
+        <div class="kpi fade-in"><div class="kpi-ic blue">📞</div><div class="kpi-l">Totalt samtal</div><div class="kpi-v">${totSamtal}</div><div class="kpi-sub">Snitt ${avgSamtal}/dag</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic green">✓</div><div class="kpi-l">Totalt sälj</div><div class="kpi-v">${totSalj}</div><div class="kpi-sub">Snitt ${avgSalj}/dag</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic gold">€</div><div class="kpi-l">Total provision</div><div class="kpi-v">€${totProv}</div><div class="kpi-sub">Snitt €${avgProv}/dag</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic purple">📊</div><div class="kpi-l">Konvertering</div><div class="kpi-v">${conv}%</div><div class="kpi-sub">Sälj per samtal</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic orange">⏱</div><div class="kpi-l">Aktiv tid</div><div class="kpi-v">${fmtMin(totAktiv)}</div><div class="kpi-sub">${nDays} dagar registrerade</div></div>
+      </div>
+      ${renderSellerPackages(days)}
+      ${isCoach?renderCoachTeamOverview():renderScoreboard()}
+    </div>
+  `;
+}
+
+function renderSellerPackages(days){
+  const singel=sum(days,'sold_s189'),par=sum(days,'sold_s229'),familj=sum(days,'sold_s279');
+  const addon=sum(days,'sold_a49')+sum(days,'sold_a79')+sum(days,'sold_a99');
+  const box=(label,val,bg,col)=>`<div style="text-align:center;padding:1rem;background:${bg};border-radius:10px;"><div style="font-size:11px;color:${col};font-weight:700;text-transform:uppercase;letter-spacing:.06em;">${label}</div><div style="font-size:26px;font-weight:700;color:${col};margin-top:4px;">${val}</div></div>`;
+  return `
+    <div class="sec fade-in">
+      <div class="sec-hdr"><h3>📦 Mina sålda paket</h3><span style="font-size:11px;color:var(--mu);">Totalt alla tider</span></div>
+      <div class="sec-body">
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:0;">
+          ${box('Singel',singel,'#EAF4EE','var(--g)')}
+          ${box('Par',par,'#EAF4EE','var(--g)')}
+          ${box('Familj',familj,'#EAF4EE','var(--g)')}
+          ${box('Tilläggstjänster',addon,'var(--purplel)','var(--purple)')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function scoreboardRows(){
+  const board=S.scoreboard.map(x=>({...x,total:x.salj+x.tillagg})).sort((a,b)=>b.total-a.total);
+  const meId=S.seller&&S.seller.id;
+  const maxT=Math.max(...board.map(b=>b.total),1);
+  if(!board.length)return '<div class="empty"><p>Inga säljare att jämföra ännu</p><small>Scoreboarden fylls när säljare registrerat statistik</small></div>';
+  return board.map((b,i)=>{
+    const isMe=b.seller_id===meId;
+    const pct=(b.total/maxT)*100;
+    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    return `
+      <div style="display:grid;grid-template-columns:30px 1fr 90px 80px 80px;gap:10px;align-items:center;padding:9px 12px;background:${isMe?'#FAEEDA':'var(--bg)'};border:1px solid ${isMe?'var(--gold)':'var(--bg2)'};border-radius:8px;margin-bottom:6px;">
+        <div style="font-size:14px;font-weight:700;color:${isMe?'var(--gold)':'var(--mu)'};text-align:center;">${medal||(i+1)}</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--tx);">${esc(b.name)}${isMe?' <span style="font-size:10px;color:var(--gold);background:var(--w);padding:1px 6px;border-radius:4px;font-weight:700;">DU</span>':''}</div>
+          <div style="height:6px;background:var(--bg2);border-radius:3px;overflow:hidden;margin-top:4px;"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,${isMe?'var(--gold),#E8C76A':'var(--g),var(--gt)'});border-radius:3px;"></div></div>
+        </div>
+        <div style="text-align:center;"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;font-weight:600;">Sälj</div><div style="font-size:14px;font-weight:700;color:var(--g);">${b.salj}</div></div>
+        <div style="text-align:center;"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;font-weight:600;">Tillägg</div><div style="font-size:14px;font-weight:700;color:var(--purple);">${b.tillagg}</div></div>
+        <div style="text-align:center;"><div style="font-size:10px;color:var(--mu);text-transform:uppercase;font-weight:600;">Totalt</div><div style="font-size:14px;font-weight:700;">${b.total}</div></div>
+      </div>`;
+  }).join('');
+}
+
+function renderScoreboard(){
+  return `
+    <div class="sec fade-in">
+      <div class="sec-hdr"><h3>🏆 Scoreboard – Teamets sälj</h3><span style="font-size:11px;color:var(--mu);">Totalt alla tider</span></div>
+      <div class="sec-body">${scoreboardRows()}</div>
+    </div>`;
+}
+
+function renderCoachTeamOverview(){
+  const board=S.scoreboard;
+  const teamSalj=sum(board,'salj'),teamAddon=sum(board,'tillagg');
+  return `
+    <div class="sec fade-in">
+      <div class="sec-hdr"><h3>👥 Säljarnas resultat</h3><span style="font-size:11px;color:var(--mu);">Totalt antal sälj per säljare</span></div>
+      <div class="sec-body">
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+          <div style="text-align:center;padding:1rem;background:#EAF4EE;border-radius:10px;"><div style="font-size:11px;color:var(--g);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Sälj (paket)</div><div style="font-size:26px;font-weight:700;color:var(--g);margin-top:4px;">${teamSalj}</div></div>
+          <div style="text-align:center;padding:1rem;background:var(--purplel);border-radius:10px;"><div style="font-size:11px;color:var(--purple);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Tilläggstjänster</div><div style="font-size:26px;font-weight:700;color:var(--purple);margin-top:4px;">${teamAddon}</div></div>
+          <div style="text-align:center;padding:1rem;background:var(--bg2);border-radius:10px;"><div style="font-size:11px;color:var(--tx);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Totalt antal</div><div style="font-size:26px;font-weight:700;color:var(--tx);margin-top:4px;">${teamSalj+teamAddon}</div></div>
+        </div>
+        <div style="margin-top:1rem;">${scoreboardRows()}</div>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   DAGLIG RAPPORT
+   ============================================================ */
+async function saveDailyReport(d){
+  const row={seller_id:S.seller.id,date:d.date,
+    samtal:n(d.samtal),nej:n(d.nej),callbacks:n(d.callbacks),aktiv_min:n(d.aktiv_min),
+    sold_s189:n(d.sold_s189),sold_s229:n(d.sold_s229),sold_s279:n(d.sold_s279),
+    sold_a49:n(d.sold_a49),sold_a79:n(d.sold_a79),sold_a99:n(d.sold_a99),
+    ang_s189:n(d.ang_s189),ang_s229:n(d.ang_s229),ang_s279:n(d.ang_s279),
+    ang_a49:n(d.ang_a49),ang_a79:n(d.ang_a79),ang_a99:n(d.ang_a99),
+    source:'manual',updated_at:new Date().toISOString()};
+  const {error}=await sb.from('seller_daily_stats').upsert(row,{onConflict:'seller_id,date'});
+  return error;
+}
+
+function saljRow(name,sub,k,d){
+  return `<div class="salj-row">
+    <div class="salj-name">${esc(name)}<br><span style="font-size:11px;color:var(--mu);font-weight:400;">${esc(sub)}</span></div>
+    <div class="fl"><label>Sålda</label><input type="number" id="f-${k}" value="${n(d['sold_'+k])}" min="0"></div>
+    <div class="fl"><label>Ångrade</label><input type="number" id="f-a${k}" value="${n(d['ang_'+k])}" min="0"></div>
+  </div>`;
+}
+
+function renderDagligt(main){
+  if(!S.seller){
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Daglig rapport</div><div class="ph-s">Registrera dagens siffror</div></div></div>
+      <div class="ca"><div class="notice warn">⚠️ Ditt konto är inte kopplat till en säljarprofil ännu, så rapporter kan inte sparas. Be coachen länka kontot (auth → sellers).</div></div>`;
+    return;
+  }
+  if(!S.reportDate)S.reportDate=new Date().toISOString().split('T')[0];
+  const existing=S.dailyStats.find(x=>x.date===S.reportDate);
+  const d=existing?{...existing}:emptyDay(S.reportDate);
+  const isCoach=S.role==='coach';
+
+  main.innerHTML=`
+    <div class="ph">
+      <div><div class="ph-t">Daglig rapport</div><div class="ph-s">${existing?'Redigerar en sparad dag':'Fyll i dagens aktivitet och sälj'}</div></div>
+      <div class="ph-a">
+        <input type="date" id="report-date" value="${d.date}" style="padding:8px 12px;border:1px solid var(--br);border-radius:8px;font-size:13px;color:var(--tx);outline:none;">
+      </div>
+    </div>
+    <div class="ca">
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>📞 Aktivitet</h3></div>
+        <div class="sec-body"><div class="daily-form">
+          <div class="fl"><label>Samtal</label><input type="number" id="f-samtal" value="${n(d.samtal)}" min="0"></div>
+          <div class="fl"><label>Nej tack</label><input type="number" id="f-nej" value="${n(d.nej)}" min="0"></div>
+          <div class="fl"><label>Callbacks</label><input type="number" id="f-cb" value="${n(d.callbacks)}" min="0"></div>
+          <div class="fl"><label>Aktiv tid (min)</label><input type="number" id="f-aktiv" value="${n(d.aktiv_min)}" min="0"></div>
+        </div></div>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>💰 Sälj – Paket</h3></div>
+        <div class="sec-body">
+          ${saljRow('Singel','189 kr/mån','s189',d)}
+          ${saljRow('Par','229 kr/mån','s229',d)}
+          ${saljRow('Familj','279 kr/mån','s279',d)}
+        </div>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>➕ Sälj – Tilläggstjänster</h3></div>
+        <div class="sec-body">
+          ${saljRow('Tillägg Singel','+49 kr','a49',d)}
+          ${saljRow('Tillägg Par','+79 kr','a79',d)}
+          ${saljRow('Tillägg Familj','+99 kr','a99',d)}
+        </div>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>📊 Sammanfattning för dagen</h3></div>
+        <div class="sec-body">
+          <div class="prov-grid">
+            <div class="prov-item"><span class="pl">Totalt sålda paket</span><span class="pv" id="ps-pkg">0</span></div>
+            <div class="prov-item"><span class="pl">Totalt sålda tillägg</span><span class="pv" id="ps-add">0</span></div>
+            <div class="prov-item"><span class="pl">Totalt ångrade</span><span class="pv" id="ps-ang" style="color:var(--err);">0</span></div>
+            ${isCoach?'<div class="prov-item"><span class="pl">Orderbelopp</span><span class="pv" id="ps-order">0 kr</span></div>':''}
+            <div class="prov-item"><span class="pl">Provision idag</span><span class="pv" id="ps-prov" style="color:var(--gold);">€0</span></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:1.2rem;">
+            <button class="btn btn-d" id="reset-btn">↺ Nollställ</button>
+            <button class="btn btn-p" id="save-btn">💾 Spara dagens rapport</button>
+          </div>
+          <div id="save-msg" style="text-align:right;margin-top:.6rem;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;"></div>
+        </div>
+      </div>
+    </div>`;
+
+  function val(id){return parseInt(document.getElementById(id).value)||0;}
+  function collect(){
+    d.samtal=val('f-samtal');d.nej=val('f-nej');d.callbacks=val('f-cb');d.aktiv_min=val('f-aktiv');
+    ['s189','s229','s279','a49','a79','a99'].forEach(k=>{
+      d['sold_'+k]=val('f-'+k);d['ang_'+k]=val('f-a'+k);
+    });
+  }
+  function refresh(){
+    collect();
+    document.getElementById('ps-pkg').textContent=dayTotalSalj(d);
+    document.getElementById('ps-add').textContent=dayTotalAddon(d);
+    document.getElementById('ps-ang').textContent=dayTotalAng(d);
+    const po=document.getElementById('ps-order');if(po)po.textContent=dayOrderbelopp(d)+' kr';
+    document.getElementById('ps-prov').textContent='€'+dayProvision(d);
+  }
+  main.querySelectorAll('input[type=number]').forEach(inp=>inp.addEventListener('input',refresh));
+  refresh();
+
+  document.getElementById('report-date').addEventListener('change',e=>{
+    if(e.target.value){S.reportDate=e.target.value;renderDagligt(main);}
+  });
+  document.getElementById('reset-btn').addEventListener('click',()=>{
+    if(!confirm('Nollställ alla siffror för '+S.reportDate+'?'))return;
+    main.querySelectorAll('input[type=number]').forEach(inp=>inp.value=0);
+    refresh();
+  });
+  document.getElementById('save-btn').addEventListener('click',async()=>{
+    collect();
+    const btn=document.getElementById('save-btn');
+    btn.disabled=true;btn.textContent='Sparar…';
+    let error=null;
+    try{error=await saveDailyReport(d);}catch(e){error=e;}
+    if(error){
+      btn.disabled=false;btn.textContent='💾 Spara dagens rapport';
+      const msg=document.getElementById('save-msg');
+      msg.style.color='var(--err)';msg.textContent='✗ Kunde inte spara: '+(error.message||error);msg.style.opacity='1';
+      return;
+    }
+    await loadDashboardData();
+    renderDagligt(main);
+    const msg=document.getElementById('save-msg');
+    if(msg){msg.style.color='var(--g)';msg.textContent='✓ Sparat!';msg.style.opacity='1';
+      setTimeout(()=>{const m=document.getElementById('save-msg');if(m)m.style.opacity='0';},2200);}
+  });
+}
+
+/* ============================================================
+   HISTORIK
+   ============================================================ */
+function renderHistorik(main){
+  const sorted=[...S.dailyStats].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const isCoach=S.role==='coach';
+  const tot={samtal:0,nej:0,cb:0,aktiv:0,salj:0,addon:0,ang:0,order:0,prov:0};
+  sorted.forEach(d=>{
+    tot.samtal+=n(d.samtal);tot.nej+=n(d.nej);tot.cb+=n(d.callbacks);tot.aktiv+=n(d.aktiv_min);
+    tot.salj+=dayTotalSalj(d);tot.addon+=dayTotalAddon(d);tot.ang+=dayTotalAng(d);
+    tot.order+=dayOrderbelopp(d);tot.prov+=dayProvision(d);
+  });
+  const notice=!S.seller?'<div class="notice warn">⚠️ Kontot är inte kopplat till en säljarprofil ännu.</div>':'';
+  main.innerHTML=`
+    <div class="ph"><div><div class="ph-t">Historik</div><div class="ph-s">${sorted.length} dagar registrerade</div></div></div>
+    <div class="ca">
+      ${notice}
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>📅 Alla dagar</h3></div>
+        <div class="sec-body">
+          ${sorted.length===0?'<div class="empty"><p>Inga dagar registrerade ännu</p><small>Gå till Daglig rapport för att fylla i</small></div>':`
+          <div class="htable-wrap"><table class="htable">
+            <thead><tr><th>Dag</th><th>Samtal</th><th>Nej</th><th>CB</th><th>Aktiv</th><th>Sälj</th><th>Tillägg</th><th>Ångr</th>${isCoach?'<th>Order</th>':''}<th>Provision</th></tr></thead>
+            <tbody>
+              ${sorted.map(d=>`<tr>
+                <td class="h-day">${fmtDate(d.date)}</td>
+                <td class="h-num">${n(d.samtal)}</td>
+                <td class="h-num no">${n(d.nej)}</td>
+                <td class="h-num cb">${n(d.callbacks)}</td>
+                <td class="h-num">${fmtMin(n(d.aktiv_min))}</td>
+                <td class="h-num salj">${dayTotalSalj(d)}</td>
+                <td class="h-num" style="color:var(--purple);">${dayTotalAddon(d)}</td>
+                <td class="h-num" style="color:${dayTotalAng(d)>0?'var(--err)':'var(--mu)'};">${dayTotalAng(d)}</td>
+                ${isCoach?`<td class="h-num">${dayOrderbelopp(d)} kr</td>`:''}
+                <td class="h-num" style="color:var(--gold);">€${dayProvision(d)}</td>
+              </tr>`).join('')}
+              <tr class="tot-row">
+                <td>TOTALT</td><td>${tot.samtal}</td><td>${tot.nej}</td><td>${tot.cb}</td><td>${fmtMin(tot.aktiv)}</td>
+                <td class="salj">${tot.salj}</td><td style="color:var(--purple);">${tot.addon}</td>
+                <td style="color:${tot.ang>0?'var(--err)':'var(--mu)'};">${tot.ang}</td>
+                ${isCoach?`<td>${tot.order} kr</td>`:''}
+                <td style="color:var(--gold);">€${tot.prov}</td>
+              </tr>
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   PLACEHOLDER — flikar som byggs i kommande etapper
+   ============================================================ */
+function renderPlaceholder(main,tab){
+  const titles={dagligt:'Daglig rapport',historik:'Historik',provision:'Provision',
+    produktutbildning:'Produktutbildning',saljutbildning:'Säljutbildning',ljudfiler:'Ljudfiler',
+    mal:'Mål & Streak',tavlingar:'Tävlingar',team:'Säljare',teamstats:'Statistik säljare',allstats:'All statistik'};
+  const title=titles[tab]||'Sida';
+  main.innerHTML=`
+    <div class="ph"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">Byggs i en kommande etapp</div></div></div>
+    <div class="ca">
+      <div class="ph-soon">
+        <div class="ph-soon-ic">🚧</div>
+        <h2>${esc(title)} byggs i nästa etapp</h2>
+        <p>Den här vyn finns redan färdig i demon och kopplas till Supabase steg för steg. Etapp 1 (inloggning + dashboard) är klar.</p>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   EVENT-BINDNINGAR
+   ============================================================ */
+(function(){
+  document.getElementById('login-btn').addEventListener('click',doLogin);
+  ['li-email','li-pass'].forEach(id=>{
+    document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  });
+  document.getElementById('logout-btn').addEventListener('click',doLogout);
+  document.getElementById('sb-nav').addEventListener('click',e=>{
+    const btn=e.target.closest('.sbi');
+    if(!btn)return;
+    document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    S.tab=btn.dataset.tab;
+    render();
+  });
+  /* Starta: finns session → appen, annars login */
+  bootstrap();
+})();
+</script>
+</body>
+</html>
