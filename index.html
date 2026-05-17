@@ -695,6 +695,7 @@ const S={user:null,profile:null,seller:null,role:'saljare',
 /* ---- Hjälpfunktioner ---- */
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function fmtMin(min){min=Math.max(0,Math.round(min||0));const h=Math.floor(min/60),m=min%60;return h+'h '+m+'m';}
+function fmtSec(s){s=Math.max(0,Math.round(n(s)));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
 function show(id,disp){document.getElementById(id).style.display=disp||'';}
 function hide(id){document.getElementById(id).style.display='none';}
 function sum(arr,k){return arr.reduce((a,d)=>a+(Number(d[k])||0),0);}
@@ -1376,21 +1377,16 @@ function renderAllStatsTeam(rows){
   const dRows=rows.filter(d=>d.dialer);
   let dialerHtml='';
   if(dRows.length){
-    const ds=k=>dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer[k]),0);
-    let hrS=0,hrN=0;
-    dRows.forEach(d=>{const h=n(d.dialer&&d.dialer.lead_hit_rate);if(h>0){hrS+=h;hrN++;}});
+    const invalid=dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
+    let avgS=0,avgN=0;
+    dRows.forEach(d=>{const s=n(d.dialer&&d.dialer.avg_conv_sec);if(s>0){avgS+=s;avgN++;}});
     const di=(l,v,c)=>`<div class="prov-item"><span class="pl">${l}</span><span class="pv"${c?' style="color:'+c+';"':''}>${v}</span></div>`;
     dialerHtml=`<div class="sec fade-in">
       <div class="sec-hdr"><h3>📞 Dialer-statistik – hela laget</h3></div>
       <div class="sec-body"><div class="prov-grid">
-        ${di('Besvarade samtal',ds('calls_answered'))}
-        ${di('Samtal 30+ sek',ds('calls_30plus'))}
-        ${di('Total samtalstid',fmtMin(ds('call_duration_min')))}
-        ${di('Privata callbacks',ds('private_callbacks'))}
-        ${di('Snitt lead hit rate',hrN>0?(hrS/hrN).toFixed(1):'–')}
-        ${di('Stängda affärer',ds('closed_success'),'var(--g)')}
-        ${di('Stängda leads',ds('closed_leads'))}
-        ${di('Ogiltiga leads',ds('invalid_leads'))}
+        ${di('Snittsamtalstid',avgN>0?fmtSec(avgS/avgN):'–')}
+        ${di('Ej intresserade leads',nej)}
+        ${di('Ogiltiga leads',invalid)}
       </div></div></div>`;
   }
   const kpi=(ic,cls,label,val,sub)=>`<div class="kpi fade-in"><div class="kpi-ic ${cls}">${ic}</div><div class="kpi-l">${label}</div><div class="kpi-v">${val}</div><div class="kpi-sub">${sub}</div></div>`;
@@ -1456,21 +1452,17 @@ function renderAllStatsSeller(seller,allRows){
   const dDays=days.filter(d=>d.dialer);
   let dialerHtml='';
   if(dDays.length){
-    const ds=k=>dDays.reduce((a,d)=>a+n(d.dialer&&d.dialer[k]),0);
-    let hrS=0,hrN=0;
-    dDays.forEach(d=>{const h=n(d.dialer&&d.dialer.lead_hit_rate);if(h>0){hrS+=h;hrN++;}});
+    const invalid=dDays.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
+    let avgS=0,avgN=0;
+    dDays.forEach(d=>{const s=n(d.dialer&&d.dialer.avg_conv_sec);if(s>0){avgS+=s;avgN++;}});
+    const dnej=days.reduce((a,d)=>a+n(d.nej),0);
     const di=(l,v,c)=>`<div class="prov-item"><span class="pl">${l}</span><span class="pv"${c?' style="color:'+c+';"':''}>${v}</span></div>`;
     dialerHtml=`<div class="sec fade-in">
       <div class="sec-hdr"><h3>📞 ${esc(seller.name)} – dialer-statistik</h3></div>
       <div class="sec-body"><div class="prov-grid">
-        ${di('Besvarade samtal',ds('calls_answered'))}
-        ${di('Samtal 30+ sek',ds('calls_30plus'))}
-        ${di('Total samtalstid',fmtMin(ds('call_duration_min')))}
-        ${di('Privata callbacks',ds('private_callbacks'))}
-        ${di('Snitt lead hit rate',hrN>0?(hrS/hrN).toFixed(1):'–')}
-        ${di('Stängda affärer',ds('closed_success'),'var(--g)')}
-        ${di('Stängda leads',ds('closed_leads'))}
-        ${di('Ogiltiga leads',ds('invalid_leads'))}
+        ${di('Snittsamtalstid',avgN>0?fmtSec(avgS/avgN):'–')}
+        ${di('Ej intresserade leads',dnej)}
+        ${di('Ogiltiga leads',invalid)}
       </div></div></div>`;
   }
   const dayRow=(d,hidden)=>`<tr class="as-day-row${hidden?' as-old-row':''}"${hidden?' style="display:none;"':''}>
@@ -1599,43 +1591,121 @@ function renderAllStats(main){
 }
 
 /* ============================================================
-   DIALER-IMPORT (Excel/CSV)
+   STATISTIK-IMPORT — säljfil + aktivitetsfil (dialer)
    ============================================================ */
+function importMatchSeller(name){
+  const q=String(name||'').toLowerCase().trim();
+  if(!q)return null;
+  let m=(S.allSellers||[]).find(s=>(s.name||'').toLowerCase().trim()===q||(s.email||'').toLowerCase().trim()===q);
+  if(m)return m;
+  const fn=(S.allSellers||[]).filter(s=>(s.name||'').toLowerCase().trim().split(/\s+/)[0]===q);
+  return fn.length===1?fn[0]:null;
+}
+
+function readSheet(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('Kunde inte läsa "'+file.name+'".'));
+    reader.onload=ev=>{
+      try{
+        const wb=XLSX.read(ev.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(ws,{defval:'',raw:false}));
+      }catch(e){reject(new Error('Kunde inte tolka "'+file.name+'": '+(e.message||e)));}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function colFinder(rows){
+  const headers=Object.keys(rows[0]||{});
+  const lower=headers.map(h=>String(h).toLowerCase().trim());
+  return (...kw)=>{for(const k of kw){const i=lower.findIndex(h=>h.includes(k));if(i>=0)return headers[i];}return null;};
+}
+
+/* Fil 1: säljlista — en rad per affär. Status-kolumnen ignoreras helt. */
+function parseSalesFile(rows){
+  if(!rows.length)return {error:'Säljfilen innehåller inga rader.'};
+  const find=colFinder(rows);
+  const cSeller=find('last contacted by','contacted by','säljare','saljare','user');
+  const cPkg=find('välj paket','valj paket','paket','package');
+  const cAddon=find('tilläggstjänst','tillaggstjanst','tillägg','tillagg','addon');
+  if(!cSeller||!cPkg)return {error:'behöver en säljarkolumn (t.ex. "Last contacted by") och en paketkolumn ("Välj paket").'};
+  const pkg=v=>{v=String(v||'').toLowerCase();return v.includes('singel')?'s189':v.includes('par')?'s229':v.includes('familj')?'s279':null;};
+  const add=v=>{v=String(v||'').toLowerCase();return v.includes('singel')?'a49':v.includes('par')?'a79':v.includes('familj')?'a99':null;};
+  const bySeller={},unmatched=new Set();
+  rows.forEach(r=>{
+    const nm=String(r[cSeller]||'').trim();if(!nm)return;
+    const seller=importMatchSeller(nm);
+    if(!seller){unmatched.add(nm);return;}
+    if(!bySeller[seller.id])bySeller[seller.id]={_name:seller.name,sold_s189:0,sold_s229:0,sold_s279:0,sold_a49:0,sold_a79:0,sold_a99:0};
+    const pk=pkg(r[cPkg]);if(pk)bySeller[seller.id]['sold_'+pk]++;
+    if(cAddon){const ak=add(r[cAddon]);if(ak)bySeller[seller.id]['sold_'+ak]++;}
+  });
+  return {bySeller,unmatched:[...unmatched]};
+}
+
+/* Fil 2: dialer-aktivitet — endast kampanjen Letuscook räknas. */
+function parseDialerFile(rows){
+  if(!rows.length)return {error:'Aktivitetsfilen innehåller inga rader.'};
+  const find=colFinder(rows);
+  const cUser=find('users','user');
+  const cCamp=find('campaign');
+  const cCalls=find('number of calls','antal samtal');
+  const cNej=find('not interested','ej intress');
+  const cInval=find('invalid leads','ogiltig');
+  const cActive=find('active time');
+  const cAvg=find('average conversation','snittsamtal');
+  if(!cUser)return {error:'behöver en "Users"-kolumn.'};
+  const num=(r,c)=>{if(!c)return 0;const v=parseFloat(String(r[c]).replace(',','.'));return isNaN(v)?0:v;};
+  const bySeller={},unmatched=new Set();let skipped=0;
+  rows.forEach(r=>{
+    if(cCamp){const camp=String(r[cCamp]||'').toLowerCase().trim();if(camp!=='letuscook'){skipped++;return;}}
+    const nm=String(r[cUser]||'').trim();
+    if(!nm||nm.toLowerCase()==='no user')return;
+    const seller=importMatchSeller(nm);
+    if(!seller){unmatched.add(nm);return;}
+    let a=bySeller[seller.id];
+    if(!a)a=bySeller[seller.id]={_name:seller.name,samtal:0,nej:0,aktiv_min:0,invalid:0,_avgSum:0,_avgN:0};
+    a.samtal+=Math.round(num(r,cCalls));
+    a.nej+=Math.round(num(r,cNej));
+    a.invalid+=Math.round(num(r,cInval));
+    a.aktiv_min+=hmsToMin(cActive?r[cActive]:0);
+    const sec=hmsToSec(cAvg?r[cAvg]:0);
+    if(sec>0){a._avgSum+=sec;a._avgN++;}
+  });
+  return {bySeller,unmatched:[...unmatched],skipped};
+}
+
 function showImportModal(){
   const mc=document.getElementById('mc');
   const ov=document.createElement('div');ov.className='overlay';
+  const slbl='margin-bottom:.5rem;font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;';
   ov.innerHTML=`
-    <div class="modal">
-      <h2>📤 Importera dialer-export</h2>
-      <p>Ladda upp en Excel- eller CSV-export från dialern (t.ex. Adversus). Varje säljares samtal, aktiv tid och dialer-statistik uppdateras för valt datum. Säljare matchas på namn eller e-post – rader utan matchande säljare hoppas över. Redan ifyllda sälj-siffror för dagen påverkas inte.</p>
-      <div class="fl" style="margin-bottom:1rem;">
+    <div class="modal" style="max-width:480px;">
+      <h2>📤 Importera statistik</h2>
+      <p>Ladda upp säljfilen och/eller aktivitetsfilen och välj datum. Säljare matchas på namn. Aktivitetsfilen räknar bara kampanjen <strong>Letuscook</strong> – övriga hoppas över. Säljsiffrorna för datumet sätts utifrån filen.</p>
+      <div class="fl" style="margin-bottom:1.1rem;">
         <label>Datum för perioden</label>
         <input type="date" id="imp-date" value="${new Date().toISOString().split('T')[0]}">
       </div>
-      <div class="fdrop" id="imp-drop">
-        <p id="imp-drop-text" style="font-size:13px;color:var(--mu);margin:0;">Klicka för att välja .xlsx- eller .csv-fil</p>
-        <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none;">
+      <div style="${slbl}">1 · Säljfil</div>
+      <div class="fdrop" id="imp-drop1" style="margin-bottom:1.1rem;">
+        <p id="imp-text1" style="font-size:13px;color:var(--mu);margin:0;">Klicka för att välja säljfil (.xlsx/.csv)</p>
+        <input type="file" id="imp-file1" accept=".xlsx,.xls,.csv" style="display:none;">
+      </div>
+      <div style="${slbl}">2 · Aktivitetsfil (dialer)</div>
+      <div class="fdrop" id="imp-drop2" style="margin-bottom:1.1rem;">
+        <p id="imp-text2" style="font-size:13px;color:var(--mu);margin:0;">Klicka för att välja aktivitetsfil (.xlsx/.csv)</p>
+        <input type="file" id="imp-file2" accept=".xlsx,.xls,.csv" style="display:none;">
       </div>
       <div id="imp-result" style="display:none;border-radius:8px;padding:11px 13px;font-size:13px;white-space:pre-line;margin-bottom:1rem;"></div>
       <div class="modal-actions">
         <button class="btn btn-s" id="imp-close">Stäng</button>
+        <button class="btn btn-p" id="imp-run">Importera</button>
       </div>
     </div>`;
-  const drop=ov.querySelector('#imp-drop'),fi=ov.querySelector('#imp-file');
-  drop.addEventListener('click',()=>fi.click());
-  fi.addEventListener('change',e=>{
-    if(e.target.files[0]){
-      ov.querySelector('#imp-drop-text').textContent='📄 '+e.target.files[0].name;
-      processDialerFile(e.target.files[0],ov);
-    }
-  });
-  function close(){mc.innerHTML='';render();}
-  ov.querySelector('#imp-close').addEventListener('click',close);
-  ov.addEventListener('click',e=>{if(e.target===ov)close();});
-  mc.innerHTML='';mc.appendChild(ov);
-}
-
-function processDialerFile(file,ov){
+  let file1=null,file2=null;
   const result=ov.querySelector('#imp-result');
   function show(msg,bad){
     result.style.display='block';
@@ -1644,78 +1714,68 @@ function processDialerFile(file,ov){
     result.style.borderLeft='3px solid '+(bad?'var(--err)':'var(--g)');
     result.textContent=msg;
   }
-  if(typeof XLSX==='undefined'){show('Excel-biblioteket kunde inte laddas. Kontrollera internetanslutningen och försök igen.',true);return;}
-  const reader=new FileReader();
-  reader.onerror=()=>show('Kunde inte läsa filen.',true);
-  reader.onload=async ev=>{
-    let rows;
-    try{
-      const wb=XLSX.read(ev.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
-    }catch(e){show('Kunde inte tolka filen: '+(e.message||e),true);return;}
-    if(!rows||!rows.length){show('Filen innehåller inga rader.',true);return;}
-    const headers=Object.keys(rows[0]);
-    const lower=headers.map(h=>String(h).toLowerCase().trim());
-    const findCol=(...kw)=>{for(const k of kw){const i=lower.findIndex(h=>h.includes(k));if(i>=0)return headers[i];}return null;};
-    const isDialer=lower.some(h=>h.includes('user'))&&lower.some(h=>h.includes('number of calls')||h.includes('active time')||h.includes('closed as success'));
-    if(!isDialer){show('Filen känns inte igen som en dialer-export. Den behöver en "Users"-kolumn och samtalskolumner (t.ex. "Number of calls").',true);return;}
-    const C={
-      user:findCol('users','user'),calls:findCol('number of calls'),
-      answered:findCol('calls (answered)','answered'),over30:findCol('30+'),
-      closed:findCol('closed as success'),closedLeads:findCol('closed leads'),
-      invalid:findCol('invalid leads'),notInt:findCol('not interested leads','ej intresse'),
-      callbacks:findCol('callbacks created','scheduled callbacks'),privateCb:findCol('private callback'),
-      activeTime:findCol('active time'),callDur:findCol('call duration'),
-      avgConv:findCol('average conversation'),hitRate:findCol('hit rate'),campaign:findCol('campaign')
-    };
-    const num=(r,c)=>{if(!c)return 0;const v=parseFloat(String(r[c]).replace(',','.'));return isNaN(v)?0:v;};
-    const date=ov.querySelector('#imp-date').value||new Date().toISOString().split('T')[0];
-    const matched=[],unmatched=[],upserts=[];
-    rows.forEach(r=>{
-      const uname=String(r[C.user]||'').trim();
-      if(!uname||uname.toLowerCase()==='no user')return;
-      const seller=S.allSellers.find(s=>(s.name||'').toLowerCase()===uname.toLowerCase()||(s.email||'').toLowerCase()===uname.toLowerCase());
-      if(!seller){unmatched.push(uname);return;}
-      const existing=S.allStats.find(d=>d.seller_id===seller.id&&d.date===date)||emptyDay(date);
-      upserts.push(Object.assign({},existing,{
-        seller_id:seller.id,date:date,
-        samtal:Math.round(num(r,C.calls)),
-        nej:Math.round(num(r,C.notInt)),
-        callbacks:Math.round(num(r,C.callbacks)),
-        aktiv_min:hmsToMin(C.activeTime?r[C.activeTime]:0),
-        dialer:{
-          campaign:C.campaign?String(r[C.campaign]||''):'',
-          calls_answered:Math.round(num(r,C.answered)),
-          calls_30plus:Math.round(num(r,C.over30)),
-          call_duration_min:hmsToMin(C.callDur?r[C.callDur]:0),
-          avg_conv_sec:hmsToSec(C.avgConv?r[C.avgConv]:0),
-          private_callbacks:Math.round(num(r,C.privateCb)),
-          lead_hit_rate:num(r,C.hitRate),
-          closed_success:Math.round(num(r,C.closed)),
-          closed_leads:Math.round(num(r,C.closedLeads)),
-          invalid_leads:Math.round(num(r,C.invalid))
-        },
-        source:'dialer',updated_at:new Date().toISOString()
-      }));
-      matched.push(seller.name);
+  function slot(num){
+    const drop=ov.querySelector('#imp-drop'+num),fi=ov.querySelector('#imp-file'+num),tx=ov.querySelector('#imp-text'+num);
+    drop.addEventListener('click',()=>fi.click());
+    fi.addEventListener('change',e=>{
+      const f=e.target.files[0];if(!f)return;
+      if(num===1)file1=f;else file2=f;
+      tx.textContent='📄 '+f.name;
     });
-    if(!upserts.length){
-      show('Inga rader matchade en säljare i systemet.'+(unmatched.length?'\nOmatchade namn: '+unmatched.join(', '):''),true);
-      return;
+  }
+  slot(1);slot(2);
+  function close(){mc.innerHTML='';render();}
+  ov.querySelector('#imp-close').addEventListener('click',close);
+  ov.addEventListener('click',e=>{if(e.target===ov)close();});
+  ov.querySelector('#imp-run').addEventListener('click',async()=>{
+    const btn=ov.querySelector('#imp-run');
+    if(!file1&&!file2){show('Välj minst en fil att importera.',true);return;}
+    if(typeof XLSX==='undefined'){show('Excel-biblioteket kunde inte laddas. Kontrollera internet och försök igen.',true);return;}
+    btn.disabled=true;btn.textContent='Importerar…';
+    function fail(m){show(m,true);btn.disabled=false;btn.textContent='Importera';}
+    const date=ov.querySelector('#imp-date').value||new Date().toISOString().split('T')[0];
+    let sales=null,dialer=null;
+    try{
+      if(file1){const r=parseSalesFile(await readSheet(file1));if(r.error)return fail('Säljfil: '+r.error);sales=r;}
+      if(file2){const r=parseDialerFile(await readSheet(file2));if(r.error)return fail('Aktivitetsfil: '+r.error);dialer=r;}
+    }catch(e){return fail('✗ '+(e.message||e));}
+    const sb1=sales?sales.bySeller:{},sb2=dialer?dialer.bySeller:{};
+    const ids=new Set([...Object.keys(sb1),...Object.keys(sb2)]);
+    if(!ids.size){
+      const um=[...new Set([...(sales?sales.unmatched:[]),...(dialer?dialer.unmatched:[])])];
+      return fail('Inga rader matchade en säljare i systemet.'+(um.length?'\nOmatchade namn: '+um.join(', '):''));
     }
+    const upserts=[],names=[];
+    ids.forEach(sid=>{
+      const existing=(S.allStats||[]).find(d=>d.seller_id===sid&&d.date===date)||emptyDay(date);
+      const row=Object.assign({},existing,{seller_id:sid,date:date,source:'import',updated_at:new Date().toISOString()});
+      const sv=sb1[sid];
+      if(sv)['sold_s189','sold_s229','sold_s279','sold_a49','sold_a79','sold_a99'].forEach(k=>row[k]=sv[k]);
+      const av=sb2[sid];
+      if(av){
+        row.samtal=av.samtal;row.nej=av.nej;row.aktiv_min=av.aktiv_min;
+        row.dialer=Object.assign({},existing.dialer||{},{
+          campaign:'Letuscook',
+          invalid_leads:av.invalid,
+          avg_conv_sec:av._avgN>0?Math.round(av._avgSum/av._avgN):0
+        });
+      }
+      upserts.push(row);
+      names.push((sv&&sv._name)||(av&&av._name)||sid);
+    });
     show('Importerar '+upserts.length+' säljare…',false);
     let error=null;
-    try{
-      const res=await sb.from('seller_daily_stats').upsert(upserts,{onConflict:'seller_id,date'});
-      error=res.error;
-    }catch(e){error=e;}
-    if(error){show('✗ Kunde inte spara importen: '+(error.message||error),true);return;}
+    try{const res=await sb.from('seller_daily_stats').upsert(upserts,{onConflict:'seller_id,date'});error=res.error;}catch(e){error=e;}
+    if(error)return fail('✗ Kunde inte spara importen: '+(error.message||error));
     await loadDashboardData();
-    show('✓ Dialer-export importerad för '+date+'\n'+matched.length+' säljare uppdaterade: '+matched.join(', ')
-      +(unmatched.length?'\n\n'+unmatched.length+' omatchade rad(er) hoppades över: '+unmatched.join(', '):''),false);
-  };
-  reader.readAsArrayBuffer(file);
+    const um=[...new Set([...(sales?sales.unmatched:[]),...(dialer?dialer.unmatched:[])])];
+    let msg='✓ Import klar för '+date+'\n'+upserts.length+' säljare uppdaterade: '+names.join(', ');
+    if(dialer&&dialer.skipped)msg+='\n'+dialer.skipped+' rad(er) hoppades över (ej kampanjen Letuscook).';
+    if(um.length)msg+='\n'+um.length+' omatchade namn hoppades över: '+um.join(', ');
+    show(msg,false);
+    btn.textContent='Klar';
+  });
+  mc.innerHTML='';mc.appendChild(ov);
 }
 
 /* ============================================================
@@ -2045,15 +2105,16 @@ function showInviteSellerModal(main){
   const lstyle='display:block;font-size:11px;font-weight:600;color:var(--mu);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;';
   ov.innerHTML=`
     <div class="modal" style="max-width:440px;">
-      <h2>➕ Bjud in säljare</h2>
-      <p>Personen får ett inbjudningsmejl och väljer själv sitt lösenord. Kontot skapas direkt och säljaren syns i listan med en gång.</p>
+      <h2>➕ Skapa säljarkonto</h2>
+      <p>Du sätter e-post och lösenord själv – inget mejl skickas. Säljaren loggar bara in med uppgifterna du anger. Skriv ner lösenordet och ge det till säljaren.</p>
       <div style="margin-bottom:11px;"><label style="${lstyle}">Namn</label><input id="iv-name" type="text" placeholder="För- och efternamn" style="${istyle}"></div>
-      <div style="margin-bottom:11px;"><label style="${lstyle}">E-post</label><input id="iv-email" type="email" placeholder="namn@smartid.se" style="${istyle}"></div>
+      <div style="margin-bottom:11px;"><label style="${lstyle}">E-post (används vid inloggning)</label><input id="iv-email" type="email" placeholder="namn@smartid.se" style="${istyle}"></div>
+      <div style="margin-bottom:11px;"><label style="${lstyle}">Lösenord</label><input id="iv-pass" type="text" placeholder="Minst 6 tecken" style="${istyle}"></div>
       <div style="margin-bottom:1.2rem;"><label style="${lstyle}">Roll</label><select id="iv-role" style="${istyle}"><option value="saljare">Säljare</option><option value="coach">Coach</option></select></div>
       <div id="iv-msg" style="display:none;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:1rem;white-space:pre-line;border-left:3px solid var(--g);"></div>
       <div class="modal-actions">
         <button class="btn btn-s" id="iv-cancel">Avbryt</button>
-        <button class="btn btn-p" id="iv-save">Skicka inbjudan</button>
+        <button class="btn btn-p" id="iv-save">Skapa konto</button>
       </div>
     </div>`;
   function close(){mc.innerHTML='';}
@@ -2065,24 +2126,26 @@ function showInviteSellerModal(main){
       msg.style.color=bad?'var(--err)':'var(--gd)';msg.style.borderLeftColor=bad?'var(--err)':'var(--g)';msg.textContent=t;}
     const name=ov.querySelector('#iv-name').value.trim();
     const email=ov.querySelector('#iv-email').value.trim();
+    const pass=ov.querySelector('#iv-pass').value;
     const role=ov.querySelector('#iv-role').value;
     if(!name){show('Ange ett namn.',true);return;}
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){show('Ange en giltig e-postadress.',true);return;}
-    const btn=ov.querySelector('#iv-save');btn.disabled=true;btn.textContent='Skickar…';
+    if(pass.length<6){show('Lösenordet måste vara minst 6 tecken.',true);return;}
+    const btn=ov.querySelector('#iv-save');btn.disabled=true;btn.textContent='Skapar…';
     let res;
-    try{res=await sb.functions.invoke('invite-seller',{body:{name:name,email:email,role:role}});}
+    try{res=await sb.functions.invoke('invite-seller',{body:{name:name,email:email,password:pass,role:role}});}
     catch(e){res={error:e};}
     if(res.error){
-      btn.disabled=false;btn.textContent='Skicka inbjudan';
+      btn.disabled=false;btn.textContent='Skapa konto';
       show('✗ Kunde inte nå servern. Är Edge Function-en deployad?\n'+(res.error.message||res.error),true);return;
     }
     if(!res.data||!res.data.ok){
-      btn.disabled=false;btn.textContent='Skicka inbjudan';
+      btn.disabled=false;btn.textContent='Skapa konto';
       show('✗ '+((res.data&&res.data.error)||'Okänt fel.'),true);return;
     }
-    show('✓ '+(res.data.message||'Inbjudan skickad.'),false);
+    show('✓ '+(res.data.message||'Kontot skapat.'),false);
     btn.textContent='Klar';
-    setTimeout(()=>{close();loadAndRenderSellers(main);},1300);
+    setTimeout(()=>{close();loadAndRenderSellers(main);},1500);
   });
   mc.innerHTML='';mc.appendChild(ov);
 }
@@ -2894,15 +2957,6 @@ function renderTeamStats(main){
         </div></div>
       </div>
       <div class="sec fade-in">
-        <div class="sec-hdr"><h3>📞 Aktivitet</h3></div>
-        <div class="sec-body"><div class="daily-form">
-          <div class="fl"><label>Samtal</label><input type="number" id="f-samtal" value="${n(d.samtal)}" min="0"></div>
-          <div class="fl"><label>Nej tack</label><input type="number" id="f-nej" value="${n(d.nej)}" min="0"></div>
-          <div class="fl"><label>Callbacks</label><input type="number" id="f-cb" value="${n(d.callbacks)}" min="0"></div>
-          <div class="fl"><label>Aktiv tid (min)</label><input type="number" id="f-aktiv" value="${n(d.aktiv_min)}" min="0"></div>
-        </div></div>
-      </div>
-      <div class="sec fade-in">
         <div class="sec-hdr"><h3>💰 Sälj – Paket</h3></div>
         <div class="sec-body">${saljRow('Singel','189 kr/mån','s189',d)}${saljRow('Par','229 kr/mån','s229',d)}${saljRow('Familj','279 kr/mån','s279',d)}</div>
       </div>
@@ -2929,7 +2983,6 @@ function renderTeamStats(main){
 
   function val(id){return parseInt(document.getElementById(id).value)||0;}
   function collect(){
-    d.samtal=val('f-samtal');d.nej=val('f-nej');d.callbacks=val('f-cb');d.aktiv_min=val('f-aktiv');
     ['s189','s229','s279','a49','a79','a99'].forEach(k=>{d['sold_'+k]=val('f-'+k);d['ang_'+k]=val('f-a'+k);});
   }
   function refresh(){
