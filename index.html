@@ -1425,11 +1425,13 @@ function renderAllStatsTeam(rows){
   const samtal=t('samtal'),nej=t('nej'),callbacks=t('callbacks'),aktiv=t('aktiv_min');
   const salj=t('sold_s189')+t('sold_s229')+t('sold_s279');
   const addon=t('sold_a49')+t('sold_a79')+t('sold_a99');
-  const ang=t('ang_s189')+t('ang_s229')+t('ang_s279')+t('ang_a49')+t('ang_a79')+t('ang_a99');
+  const invalid=rows.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
+  const unqual=rows.reduce((a,d)=>a+n(d.dialer&&d.dialer.unqualified),0);
+  const bortfallN=invalid+unqual;
   const conv=samtal>0?(salj/samtal*100):0;
   const avslag=samtal>0?(nej/samtal*100):0;
   const ater=samtal>0?(callbacks/samtal*100):0;
-  const bortfall=salj>0?(ang/salj*100):0;
+  const bortfall=samtal>0?(bortfallN/samtal*100):0;
   const perSeller=S.allSellers.map(s=>{
     const sr=rows.filter(d=>d.seller_id===s.id);
     const ss=k=>sr.reduce((a,d)=>a+n(d[k]),0);
@@ -1442,8 +1444,6 @@ function renderAllStatsTeam(rows){
   const dRows=rows.filter(d=>d.dialer);
   let dialerHtml='';
   if(dRows.length){
-    const invalid=dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
-    const unqual=dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer.unqualified),0);
     const cbPriv=dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer.cb_private),0);
     const di=(l,v,c)=>`<div class="prov-item"><span class="pl">${l}</span><span class="pv"${c?' style="color:'+c+';"':''}>${v}</span></div>`;
     dialerHtml=`<div class="sec fade-in">
@@ -1451,8 +1451,7 @@ function renderAllStatsTeam(rows){
       <div class="sec-body"><div class="prov-grid">
         ${di('Not interested',nej)}
         ${di('Privata callbacks',cbPriv)}
-        ${di('Ogiltiga leads (Invalid)',invalid)}
-        ${di('Unqualified',unqual)}
+        ${di('Bortfall (ogiltiga + unqualified)',bortfallN)}
       </div></div></div>`;
   }
   const kpi=(ic,cls,label,val,sub)=>`<div class="kpi fade-in"><div class="kpi-ic ${cls}">${ic}</div><div class="kpi-l">${label}</div><div class="kpi-v">${val}</div><div class="kpi-sub">${sub}</div></div>`;
@@ -1476,7 +1475,7 @@ function renderAllStatsTeam(rows){
           ${circleCard('Konvertering','sälj/samtal',conv,'var(--g)')}
           ${circleCard('Avslag','nej/samtal',avslag,'var(--mu)')}
           ${circleCard('Återkomster','cb/samtal',ater,'var(--gold)')}
-          ${circleCard('Bortfall','ångrade/sälj',bortfall,'var(--err)')}
+          ${circleCard('Bortfall','andel av samtal',bortfall,'var(--err)')}
         </div>
       </div>
     </div>
@@ -1528,8 +1527,7 @@ function renderAllStatsSeller(seller,allRows){
         ${di('Success (sälj)',salj,'var(--g)')}
         ${di('Not interested',dnej)}
         ${di('Privata callbacks',cbPriv)}
-        ${di('Ogiltiga leads (Invalid)',invalid)}
-        ${di('Unqualified',unqual)}
+        ${di('Bortfall (ogiltiga + unqualified)',invalid+unqual)}
         ${di('Snittsamtalstid',md&&md.avg_conv_sec?fmtSec(md.avg_conv_sec):'–')}
         ${di('Aktiv tid i dialern',md?fmtMin(md.active_min):'–')}
       </div></div></div>`;
