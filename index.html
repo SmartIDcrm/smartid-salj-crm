@@ -2991,9 +2991,13 @@ function renderCoachningCoach(main){
     html+='<div style="display:flex;flex-direction:column;gap:8px;">'+active.map(s=>cnRow(s,true,'active')).join('')+'</div>';
   }
   if(trash.length){
-    html+=`<h3 style="font-size:14px;font-weight:700;color:var(--gd);margin:1.7rem 0 .3rem;">🗑 Raderade sessioner</h3>
-      <div style="font-size:12.5px;color:var(--mu);margin-bottom:.8rem;">Raderade sessioner ligger kvar i 30 dagar och kan återställas. Sen tas de bort.</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">`+trash.map(s=>cnRow(s,true,'trash')).join('')+'</div>';
+    html+=`<details class="cn-trash" style="margin-top:1.7rem;border:1px solid var(--br);border-radius:10px;background:var(--w);">
+      <summary style="cursor:pointer;font-size:14px;font-weight:700;color:var(--gd);padding:13px 15px;user-select:none;list-style-position:inside;">🗑 Raderade sessioner (${trash.length})</summary>
+      <div style="padding:0 15px 14px;">
+        <div style="font-size:12.5px;color:var(--mu);margin-bottom:.8rem;">Raderade sessioner ligger kvar i 30 dagar och kan återställas. Sen tas de bort.</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">`+trash.map(s=>cnRow(s,true,'trash')).join('')+`</div>
+      </div>
+    </details>`;
   }
   html+=`<h3 style="font-size:14px;font-weight:700;color:var(--gd);margin:1.6rem 0 .5rem;">Coach-frågor</h3>
     <div style="font-size:12.5px;color:var(--mu);margin-bottom:.9rem;">Frågor som visas i varje feedback-session.</div>`;
