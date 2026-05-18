@@ -1467,7 +1467,7 @@ function renderCoachProvision(main){
     <td class="h-num" style="color:var(--gold);">€${prov}</td>
   </tr>`;
   main.innerHTML=`
-    <div class="ph"><div><div class="ph-t">Provision <span class="role-pill">Coach</span></div><div class="ph-s">Coachprovision på teamet och dina egna sälj</div></div></div>
+    <div class="ph"><div><div class="ph-t">Provision <span class="role-pill">Coach</span></div><div class="ph-s">Coachprovision på teamet och dina egna sälj</div></div><div class="ph-a"><button class="btn btn-s" id="prov-send">📧 Skicka provisionsrapport</button></div></div>
     <div class="ca">
       <div style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">📅 Avser ${cap} och uppdateras automatiskt när statistik importeras.</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
@@ -1531,6 +1531,19 @@ function renderCoachProvision(main){
         </div>
       </div>
     </div>`;
+  const sendBtn=main.querySelector('#prov-send');
+  if(sendBtn)sendBtn.addEventListener('click',async()=>{
+    if(!confirm('Skicka provisionsrapport för förra månaden till tl@smartid.se och kt@smartid.se nu?'))return;
+    sendBtn.disabled=true;sendBtn.textContent='Skickar…';
+    let res;
+    try{res=await sb.functions.invoke('send-month-provision',{body:{}});}catch(e){res={error:e};}
+    sendBtn.disabled=false;sendBtn.textContent='📧 Skicka provisionsrapport';
+    if(res.error||!res.data||!res.data.ok){
+      alert('✗ Kunde inte skicka rapporten.\n'+((res.data&&res.data.error)||(res.error&&(res.error.message||res.error))||'Okänt fel')+'\n\nÄr Edge Function-en send-month-provision deployad?');
+    }else{
+      alert('✓ Provisionsrapport för '+(res.data.monthLabel||'förra månaden')+' skickad till tl@smartid.se och kt@smartid.se.');
+    }
+  });
 }
 
 /* ============================================================
@@ -2156,7 +2169,7 @@ function compCoachIndivCard(c){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
         <div>
           <div style="font-size:15px;font-weight:700;color:var(--tx);">${esc(c.title)}</div>
-          <div style="font-size:12px;color:var(--mu);margin-top:3px;">${METRIC_ICON[c.metric]||'🏆'} ${esc(METRIC_LABELS[c.metric]||c.metric)} · ${fmtPeriod(c.start_date,c.end_date)} · ${dl>0?dl+' dagar kvar':(dl===0?'sista dagen':'tiden ute')}${c.goal?' · Mål: '+c.goal:''}</div>
+          <div style="font-size:12px;color:var(--mu);margin-top:3px;"><span style="color:var(--gd);font-weight:700;">${METRIC_ICON[c.metric]||'🏆'} ${esc(METRIC_LABELS[c.metric]||c.metric)}</span> · ${fmtPeriod(c.start_date,c.end_date)} · ${dl>0?dl+' dagar kvar':(dl===0?'sista dagen':'tiden ute')}${c.goal?' · Mål: '+c.goal:''}</div>
         </div>
         <span style="background:var(--bg2);color:var(--mu);font-size:10px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;">INDIVIDUELL</span>
       </div>
@@ -2183,7 +2196,7 @@ function compCoachGroupCard(c){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
         <div>
           <div style="font-size:15px;font-weight:700;color:var(--tx);">${esc(c.title)}</div>
-          <div style="font-size:12px;color:var(--mu);margin-top:3px;">${METRIC_ICON[c.metric]||'🎯'} ${esc(METRIC_LABELS[c.metric]||c.metric)} · ${fmtPeriod(c.start_date,c.end_date)} · ${dl>0?dl+' dagar kvar':(dl===0?'sista dagen':'tiden ute')} · 👥 ${cnt} säljare</div>
+          <div style="font-size:12px;color:var(--mu);margin-top:3px;"><span style="color:var(--gd);font-weight:700;">${METRIC_ICON[c.metric]||'🎯'} ${esc(METRIC_LABELS[c.metric]||c.metric)}</span> · ${fmtPeriod(c.start_date,c.end_date)} · ${dl>0?dl+' dagar kvar':(dl===0?'sista dagen':'tiden ute')} · 👥 ${cnt} säljare</div>
         </div>
         <span style="background:#FAEEDA;color:var(--gd);font-size:10px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;">GRUPPMÅL</span>
       </div>
@@ -2344,6 +2357,8 @@ function renderTavlingarSeller(main){
 
 function compSellerCard(c,st,myRank,me_,leader,meId){
   const dl=compDaysLeft(c.end_date);
+  const prizeArr=[['🥇',c.prize],['🥈',c.prize_2],['🥉',c.prize_3]].filter(x=>x[1]);
+  const prizeHtml=prizeArr.length?`<div style="margin-top:9px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;">${prizeArr.map(x=>`<div style="background-color:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;">${x[0]} 🎁 ${esc(x[1])}</div>`).join('')}</div>`:'';
   const t3=st.slice(0,3);
   const podium=[t3[1],t3[0],t3[2]];
   const rankIdx=[1,0,2];
@@ -2394,8 +2409,9 @@ function compSellerCard(c,st,myRank,me_,leader,meId){
     <div style="background:linear-gradient(135deg,var(--gd),var(--g));padding:14px 15px;color:#fff;">
       <div style="font-size:9px;font-weight:700;letter-spacing:.1em;opacity:.85;"><span class="live-dot"></span>LIVE-TÄVLING</div>
       <div style="font-size:16px;font-weight:800;margin-top:4px;line-height:1.2;">${esc(c.title)}</div>
-      <div style="font-size:11px;opacity:.82;margin-top:3px;">${METRIC_ICON[c.metric]||'🏆'} ${esc(METRIC_LABELS[c.metric]||c.metric)} · ${dl>1?dl+' dagar kvar':(dl===1?'1 dag kvar':(dl===0?'⏰ SISTA DAGEN!':'tiden ute'))}</div>
-      ${c.prize?`<div style="display:inline-block;background-color:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;margin-top:8px;">🎁 ${esc(c.prize)}</div>`:''}
+      <div style="display:inline-block;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.45);border-radius:6px;padding:4px 10px;font-size:11.5px;font-weight:800;letter-spacing:.02em;margin-top:7px;">${METRIC_ICON[c.metric]||'🏆'} MÄTER: ${esc((METRIC_LABELS[c.metric]||c.metric).toUpperCase())}</div>
+      <div style="font-size:11px;opacity:.82;margin-top:5px;">${dl>1?dl+' dagar kvar':(dl===1?'1 dag kvar':(dl===0?'⏰ SISTA DAGEN!':'tiden ute'))}</div>
+      ${prizeHtml}
       <div style="margin-top:9px;">${status}</div>
     </div>
     <div style="background:var(--w);padding:14px 8px 4px;">
@@ -2419,7 +2435,8 @@ function compSellerGroupCard(c){
     <div style="background:linear-gradient(135deg,var(--gd),var(--g));padding:14px 15px;color:#fff;">
       <div style="font-size:9px;font-weight:700;letter-spacing:.1em;opacity:.85;">🎯 GRUPPMÅL · HELA LAGET</div>
       <div style="font-size:16px;font-weight:800;margin-top:4px;line-height:1.2;">${esc(c.title)}</div>
-      <div style="font-size:11px;opacity:.82;margin-top:3px;">${METRIC_ICON[c.metric]||'🎯'} ${esc(METRIC_LABELS[c.metric]||c.metric)} · ${dl>1?dl+' dagar kvar':(dl===1?'1 dag kvar':(dl===0?'⏰ SISTA DAGEN!':'tiden ute'))}</div>
+      <div style="display:inline-block;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.45);border-radius:6px;padding:4px 10px;font-size:11.5px;font-weight:800;letter-spacing:.02em;margin-top:7px;">${METRIC_ICON[c.metric]||'🎯'} MÄTER: ${esc((METRIC_LABELS[c.metric]||c.metric).toUpperCase())}</div>
+      <div style="font-size:11px;opacity:.82;margin-top:5px;">${dl>1?dl+' dagar kvar':(dl===1?'1 dag kvar':(dl===0?'⏰ SISTA DAGEN!':'tiden ute'))}</div>
       ${c.prize?`<div style="display:inline-block;background-color:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;margin-top:8px;">🎁 ${esc(c.prize)}</div>`:''}
       <div style="margin-top:11px;">
         <div style="font-size:11.5px;font-weight:600;margin-bottom:6px;color:rgba(255,255,255,.92);">Laget: ${total} / ${goal} ${reached?'✅ MÅL UPPNÅTT!':''}</div>
