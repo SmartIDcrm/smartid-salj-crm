@@ -1694,8 +1694,14 @@ function colFinder(rows){
 function parseLeadLog(rows){
   if(!rows.length)return {error:'Leadfilen innehåller inga rader.'};
   const find=colFinder(rows);
+  const headers=Object.keys(rows[0]||{});
   const cSeller=find('last contacted by','contacted by','säljare','saljare','user');
-  const cDate=find('last contacted','date','datum');
+  /* "Last contacted" och "Last contacted by" delar prefix — uteslut säljarkolumnen
+     så datumkolumnen inte förväxlas med den, oavsett kolumnordning i filen. */
+  const cDate=headers.find(h=>{
+    const lh=String(h).toLowerCase().trim();
+    return h!==cSeller&&(lh.indexOf('last contacted')>=0||lh.indexOf('datum')>=0||lh==='date');
+  })||null;
   const cStatus=find('status');
   const cPkg=find('välj paket','valj paket','paket','package');
   const cAddon=find('tilläggstjänst','tillaggstjanst','tillägg','tillagg','addon');
