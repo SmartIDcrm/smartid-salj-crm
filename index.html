@@ -1331,6 +1331,7 @@ function renderHistorik(main){
    PROVISION / MIN LÖN
    ============================================================ */
 function renderProvision(main){
+  if(S.role==='coach'){renderCoachProvision(main);return;}
   if(!S.seller){
     main.innerHTML=`<div class="ph"><div><div class="ph-t">Provision</div><div class="ph-s">Min lön</div></div></div>
       <div class="ca"><div class="notice warn">⚠️ Kontot är inte kopplat till en säljarprofil ännu.</div></div>`;
@@ -1410,6 +1411,78 @@ function renderProvision(main){
               return `<div class="bar-row"><div class="bl">${b.label}</div><div class="bw"><div class="bf" style="width:${pct}%;background:${b.grad};"></div></div><div class="bv" style="color:${b.col};">€${b.prov} (${pct.toFixed(0)}%)</div></div>`;
             }).join('')}
           </div>`}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   COACHPROVISION — coachens provision på hela teamets sälj
+   Singel €2, Par €4, Familj €6, varje tilläggstjänst €2.
+   ============================================================ */
+function renderCoachProvision(main){
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const cap=fmtMonth(thisMonth);
+  const rows=(S.allStats||[]).filter(d=>String(d.date).slice(0,7)===thisMonth);
+  const sellers=S.allSellers||[];
+  const sumK=(arr,k)=>arr.reduce((a,d)=>a+n(d[k]),0);
+  const sg=sumK(rows,'sold_s189'),pa=sumK(rows,'sold_s229'),fa=sumK(rows,'sold_s279');
+  const ad=sumK(rows,'sold_a49')+sumK(rows,'sold_a79')+sumK(rows,'sold_a99');
+  const pSg=sg*2,pPa=pa*4,pFa=fa*6,pAd=ad*2,tot=pSg+pPa+pFa+pAd;
+  const perSeller=sellers.map(s=>{
+    const sr=rows.filter(d=>d.seller_id===s.id);
+    const a=k=>sr.reduce((x,d)=>x+n(d[k]),0);
+    const ssg=a('sold_s189'),spa=a('sold_s229'),sfa=a('sold_s279');
+    const sad=a('sold_a49')+a('sold_a79')+a('sold_a99');
+    return {name:s.name,sg:ssg,pa:spa,fa:sfa,ad:sad,prov:ssg*2+spa*4+sfa*6+sad*2};
+  }).filter(x=>x.prov>0).sort((a,b)=>b.prov-a.prov);
+  const catRow=(name,rate,cnt,prov)=>`<tr>
+    <td class="h-day">${name}</td>
+    <td class="h-num" style="color:var(--gold);">€${rate}</td>
+    <td class="h-num salj">${cnt}</td>
+    <td class="h-num" style="color:var(--gold);">€${prov}</td>
+  </tr>`;
+  main.innerHTML=`
+    <div class="ph"><div><div class="ph-t">Provision <span class="role-pill">Coach</span></div><div class="ph-s">Din provision på hela teamets försäljning</div></div></div>
+    <div class="ca">
+      <div style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">📅 Avser ${cap} och uppdateras automatiskt när statistik importeras.</div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+        <div class="kpi fade-in" style="background:linear-gradient(135deg,#FAEEDA,#fff);"><div class="kpi-ic gold">€</div><div class="kpi-l">Coachprovision ${cap}</div><div class="kpi-v" style="color:var(--gold);">€${tot}</div><div class="kpi-sub">Hela teamet</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic green">✓</div><div class="kpi-l">Sålda paket</div><div class="kpi-v">${sg+pa+fa}</div><div class="kpi-sub">Singel/Par/Familj</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic purple">➕</div><div class="kpi-l">Tilläggstjänster</div><div class="kpi-v">${ad}</div><div class="kpi-sub">Antal sålda</div></div>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>💼 Så räknas coachprovisionen</h3></div>
+        <div class="sec-body" style="padding:0;">
+          <div class="htable-wrap"><table class="htable">
+            <thead><tr><th>Kategori</th><th>Provision/st</th><th>Antal sålda</th><th>Total</th></tr></thead>
+            <tbody>
+              ${catRow('Singel',2,sg,pSg)}
+              ${catRow('Par',4,pa,pPa)}
+              ${catRow('Familj',6,fa,pFa)}
+              ${catRow('Tilläggstjänst',2,ad,pAd)}
+              <tr class="tot-row"><td>TOTALT</td><td></td><td>${sg+pa+fa+ad}</td><td style="color:var(--gold);">€${tot}</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>👥 Provision per säljare</h3><span style="font-size:11px;color:var(--mu);">Sorterat på provision</span></div>
+        <div class="sec-body" style="padding:0;">
+          ${perSeller.length===0?'<div class="empty"><p>Ingen försäljning '+cap+' ännu</p><small>Importera statistik så fylls det i</small></div>':`
+          <div class="htable-wrap"><table class="htable">
+            <thead><tr><th>Säljare</th><th>Singel</th><th>Par</th><th>Familj</th><th>Tillägg</th><th>Coachprovision</th></tr></thead>
+            <tbody>
+              ${perSeller.map(x=>`<tr>
+                <td class="h-day">${esc(x.name)}</td>
+                <td class="h-num">${x.sg}</td>
+                <td class="h-num">${x.pa}</td>
+                <td class="h-num">${x.fa}</td>
+                <td class="h-num" style="color:var(--purple);">${x.ad}</td>
+                <td class="h-num" style="color:var(--gold);">€${x.prov}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`}
         </div>
       </div>
     </div>`;
