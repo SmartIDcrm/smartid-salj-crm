@@ -2911,14 +2911,29 @@ function cnBadge(status){
     ? '<span style="background:#EAF4EE;color:var(--g);font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap;">Klar</span>'
     : '<span style="background:#FAEEDA;color:#9a7d2e;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap;">Öppen</span>';
 }
-function cnRow(s,showSeller){
+function fbDaysSince(ts){return Math.floor((Date.now()-new Date(ts).getTime())/86400000);}
+function fbTrashDaysLeft(s){return Math.max(0,30-fbDaysSince(s.deleted_at));}
+
+function cnRow(s,showSeller,mode){
   const date=s.created_at?new Date(s.created_at).toLocaleDateString('sv-SE'):'';
   const meta=(showSeller?esc(s._sellerName)+' · ':'')+date+(s.duration?' · '+esc(s.duration):'');
-  return `<button class="cn-row" data-open="${s.id}" style="display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--w);border:1px solid var(--br);border-radius:10px;padding:13px 15px;cursor:pointer;font-family:inherit;transition:border-color .15s;">
-    <div style="flex:1;min-width:0;">
+  const isCoach=S.role==='coach';
+  const savedBadge=s.saved_by_seller?'<span style="font-size:10px;font-weight:700;background:#EAF4EE;color:var(--gd);padding:3px 8px;border-radius:6px;white-space:nowrap;">★ Sparad</span>':'';
+  let right;
+  if(mode==='trash'){
+    const dl=fbTrashDaysLeft(s);
+    right=`<span style="font-size:11px;color:var(--mu);white-space:nowrap;">Raderas om ${dl} ${dl===1?'dag':'dagar'}</span>
+      <button class="btn btn-s btn-xs" data-restore="${s.id}">Återställ</button>`;
+  }else{
+    right=cnBadge(s.status)+savedBadge+(isCoach?`<button class="cn-del-btn" data-delsession="${s.id}" title="Radera session" style="background:none;border:none;cursor:pointer;color:var(--mu);font-size:15px;padding:4px 6px;border-radius:6px;">🗑</button>`:'');
+  }
+  return `<div class="cn-row" style="display:flex;align-items:center;gap:12px;width:100%;background:var(--w);border:1px solid var(--br);border-radius:10px;padding:13px 15px;">
+    <div data-open="${s.id}" style="flex:1;min-width:0;cursor:pointer;">
       <div style="font-weight:700;color:var(--gd);font-size:14px;">${esc(s.title)}</div>
       <div style="font-size:12px;color:var(--mu);margin-top:2px;">${meta}</div>
-    </div>${cnBadge(s.status)}</button>`;
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">${right}</div>
+  </div>`;
 }
 
 function renderCoachning(main){
@@ -2932,6 +2947,8 @@ async function loadAndRenderCoachning(main){
   try{const r=await sb.from(FB_SESSIONS).select('*').order('created_at',{ascending:false});sessions=r.data||[];}catch(e){}
   try{const r=await sb.from(FB_QUESTIONS).select('*').order('sort_order',{ascending:true});questions=r.data||[];}catch(e){}
   try{const r=await sb.from('sellers').select('id,name').order('name',{ascending:true});sellers=r.data||[];}catch(e){}
+  /* göm sessioner raderade för mer än 30 dagar sedan (om säljaren inte sparat dem) */
+  sessions=sessions.filter(s=>!s.deleted_at||fbDaysSince(s.deleted_at)<30||s.saved_by_seller);
   for(const s of sessions){
     if(!s.audio_path){s._audioUrl=null;continue;}
     try{const r=await sb.storage.from(AUDIO_BUCKET).createSignedUrl(s.audio_path,3600);s._audioUrl=(r.data&&r.data.signedUrl)||null;}
@@ -2966,10 +2983,17 @@ function renderCoachningCoach(main){
     </div>
     <div class="ca">
       <h3 style="font-size:14px;font-weight:700;color:var(--gd);margin:0 0 .8rem;">Sessioner</h3>`;
-  if(!S.coachSessions.length){
+  const active=S.coachSessions.filter(s=>!s.deleted_at);
+  const trash=S.coachSessions.filter(s=>s.deleted_at&&fbDaysSince(s.deleted_at)<30);
+  if(!active.length){
     html+='<div class="empty"><p>Inga feedback-sessioner än. Klicka "Skapa session" för att börja.</p></div>';
   }else{
-    html+='<div style="display:flex;flex-direction:column;gap:8px;">'+S.coachSessions.map(s=>cnRow(s,true)).join('')+'</div>';
+    html+='<div style="display:flex;flex-direction:column;gap:8px;">'+active.map(s=>cnRow(s,true,'active')).join('')+'</div>';
+  }
+  if(trash.length){
+    html+=`<h3 style="font-size:14px;font-weight:700;color:var(--gd);margin:1.7rem 0 .3rem;">🗑 Raderade sessioner</h3>
+      <div style="font-size:12.5px;color:var(--mu);margin-bottom:.8rem;">Raderade sessioner ligger kvar i 30 dagar och kan återställas. Sen tas de bort.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">`+trash.map(s=>cnRow(s,true,'trash')).join('')+'</div>';
   }
   html+=`<h3 style="font-size:14px;font-weight:700;color:var(--gd);margin:1.6rem 0 .5rem;">Coach-frågor</h3>
     <div style="font-size:12.5px;color:var(--mu);margin-bottom:.9rem;">Frågor som visas i varje feedback-session.</div>`;
@@ -2994,15 +3018,17 @@ function renderCoachningCoach(main){
   main.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{S.coachOpenSession=b.dataset.open;render();}));
   main.querySelectorAll('[data-addq]').forEach(b=>b.addEventListener('click',()=>showAddQuestionModal(b.dataset.addq)));
   main.querySelectorAll('[data-delq]').forEach(b=>b.addEventListener('click',()=>deleteQuestion(b.dataset.delq)));
+  main.querySelectorAll('[data-delsession]').forEach(b=>b.addEventListener('click',()=>{const s=S.coachSessions.find(x=>x.id===b.dataset.delsession);if(s)deleteSession(s);}));
+  main.querySelectorAll('[data-restore]').forEach(b=>b.addEventListener('click',()=>restoreSession(b.dataset.restore)));
 }
 
 function renderCoachningSeller(main){
-  const sessions=S.coachSessions.filter(s=>!S.seller||s.seller_id===S.seller.id);
+  const sessions=S.coachSessions.filter(s=>(!S.seller||s.seller_id===S.seller.id)&&(!s.deleted_at||s.saved_by_seller));
   let html=`<div class="ph"><div><div class="ph-t">💬 Mina sessioner</div><div class="ph-s">Feedback från din coach</div></div></div><div class="ca">`;
   if(!sessions.length){
     html+='<div class="empty"><p>Du har inga feedback-sessioner än. Din coach skapar dem åt dig.</p></div>';
   }else{
-    html+='<div style="display:flex;flex-direction:column;gap:8px;">'+sessions.map(s=>cnRow(s,false)).join('')+'</div>';
+    html+='<div style="display:flex;flex-direction:column;gap:8px;">'+sessions.map(s=>cnRow(s,false,'active')).join('')+'</div>';
   }
   html+='</div>';
   main.innerHTML=html;
@@ -3074,6 +3100,7 @@ function renderSessionDetail(main,s){
       <button class="btn btn-p" id="cn-save">Spara</button>`;
   if(s.status!=='done')html+='<button class="btn btn-s" id="cn-done">Markera som klar</button>';
   else html+='<button class="btn btn-s" id="cn-reopen">Återöppna</button>';
+  if(!isCoach)html+='<button class="btn btn-s" id="cn-savefb" style="margin-left:auto;'+(s.saved_by_seller?'color:var(--gd);font-weight:700;':'')+'">'+(s.saved_by_seller?'★ Sparad':'💾 Spara feedback')+'</button>';
   if(isCoach)html+='<button class="btn btn-s" id="cn-del" style="margin-left:auto;color:var(--err);">Ta bort</button>';
   html+='</div></div>';
   main.innerHTML=html;
@@ -3082,6 +3109,7 @@ function renderSessionDetail(main,s){
   const d=main.querySelector('#cn-done');if(d)d.addEventListener('click',()=>saveSession(main,s,'done'));
   const r=main.querySelector('#cn-reopen');if(r)r.addEventListener('click',()=>saveSession(main,s,'open'));
   const x=main.querySelector('#cn-del');if(x)x.addEventListener('click',()=>deleteSession(s));
+  const sv=main.querySelector('#cn-savefb');if(sv)sv.addEventListener('click',()=>toggleSaveFeedback(s));
 }
 
 async function saveSession(main,s,statusChange){
@@ -3112,10 +3140,20 @@ async function saveSession(main,s,statusChange){
 }
 
 async function deleteSession(s){
-  if(!confirm('Ta bort sessionen "'+s.title+'"?'))return;
-  try{if(s.audio_path)await sb.storage.from(AUDIO_BUCKET).remove([s.audio_path]);}catch(e){}
-  try{await sb.from(FB_SESSIONS).delete().eq('id',s.id);}catch(e){}
+  if(!confirm('Radera sessionen "'+s.title+'"?\n\nDen hamnar bland Raderade sessioner och ligger kvar där i 30 dagar innan den tas bort. Du kan återställa den under tiden.'))return;
+  try{await sb.from(FB_SESSIONS).update({deleted_at:new Date().toISOString()}).eq('id',s.id);}catch(e){}
   S.coachOpenSession=null;S.coachLoaded=false;render();
+}
+
+async function restoreSession(id){
+  try{await sb.from(FB_SESSIONS).update({deleted_at:null}).eq('id',id);}catch(e){}
+  S.coachLoaded=false;render();
+}
+
+async function toggleSaveFeedback(s){
+  const nv=!s.saved_by_seller;
+  try{await sb.from(FB_SESSIONS).update({saved_by_seller:nv}).eq('id',s.id);}catch(e){}
+  s.saved_by_seller=nv;S.coachLoaded=false;render();
 }
 
 async function deleteQuestion(id){
