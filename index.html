@@ -2055,9 +2055,21 @@ async function loadAndRenderTavlingar(main){
       S.standings[c.id]=(data||[]).map(x=>({seller_id:x.seller_id,name:x.name,score:Number(x.score)||0}));
     }catch(e){S.standings[c.id]=[];}
   }
+  if(S.role==='coach'){
+    try{const r=await sb.from('sellers').select('id,name,active,deleted').order('name',{ascending:true});
+      S.allSellers=(r.data||[]).filter(s=>s.active&&!s.deleted);}catch(e){}
+  }
   if(S.tab!=='tavlingar')return;
   if(S.role==='coach')renderTavlingarCoach(main);
   else renderTavlingarSeller(main);
+}
+
+/* Lag-poäng: summan av de deltagande säljarnas poäng (gruppmål) */
+function compTeamScore(c){
+  const st=S.standings[c.id]||[];
+  const ids=Array.isArray(c.participant_ids)?c.participant_ids:[];
+  const rel=ids.length?st.filter(s=>ids.indexOf(s.seller_id)>=0):st;
+  return rel.reduce((a,s)=>a+(Number(s.score)||0),0);
 }
 
 function renderTavlingarCoach(main){
@@ -2083,8 +2095,9 @@ function renderTavlingarCoach(main){
   main.querySelectorAll('[data-comp-end]').forEach(b=>b.addEventListener('click',async()=>{
     if(!confirm('Avsluta tävlingen i förtid? Den flyttas till avslutade.'))return;
     const id=b.dataset.compEnd;
+    const comp=S.competitions.find(x=>x.id===id);
     const st=S.standings[id]||[];
-    const winner=(st[0]&&st[0].score>0)?st[0].seller_id:null;
+    const winner=(comp&&comp.type!=='lag'&&st[0]&&st[0].score>0)?st[0].seller_id:null;
     b.disabled=true;
     try{await sb.from('competitions').update({active:false,winner_id:winner}).eq('id',id);}catch(e){}
     render();
@@ -2098,8 +2111,15 @@ function renderTavlingarCoach(main){
 }
 
 function compCoachCard(c){
+  return c.type==='lag'?compCoachGroupCard(c):compCoachIndivCard(c);
+}
+
+function compCoachIndivCard(c){
   const st=(S.standings[c.id]||[]).slice(0,3);
   const dl=compDaysLeft(c.end_date);
+  const medals=['🥇','🥈','🥉'];
+  const prizes=[c.prize,c.prize_2,c.prize_3];
+  const prizeLine=prizes.some(p=>p)?`<div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;">${prizes.map((p,i)=>p?`<div style="font-size:11.5px;color:var(--gd);"><b>${medals[i]}</b> 🎁 ${esc(p)}</div>`:'').join('')}</div>`:'';
   return `
     <div style="border:1px solid var(--br);border-radius:12px;padding:15px 16px;margin-bottom:11px;background:var(--w);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
@@ -2107,11 +2127,40 @@ function compCoachCard(c){
           <div style="font-size:15px;font-weight:700;color:var(--tx);">${esc(c.title)}</div>
           <div style="font-size:12px;color:var(--mu);margin-top:3px;">${METRIC_ICON[c.metric]||'🏆'} ${esc(METRIC_LABELS[c.metric]||c.metric)} · ${fmtPeriod(c.start_date,c.end_date)} · ${dl>0?dl+' dagar kvar':(dl===0?'sista dagen':'tiden ute')}${c.goal?' · Mål: '+c.goal:''}</div>
         </div>
-        ${c.prize?`<div style="background:#FAEEDA;color:var(--gd);font-size:12px;font-weight:700;padding:5px 11px;border-radius:7px;white-space:nowrap;">🎁 ${esc(c.prize)}</div>`:''}
+        <span style="background:var(--bg2);color:var(--mu);font-size:10px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;">INDIVIDUELL</span>
       </div>
       <div style="margin-top:11px;display:flex;gap:16px;flex-wrap:wrap;">
-        ${st.length&&st[0].score>0?st.map((s,i)=>`<div style="font-size:12px;color:var(--tx);">${['🥇','🥈','🥉'][i]} ${esc(s.name)} <b style="color:var(--g);">${s.score}</b></div>`).join(''):'<span style="font-size:12px;color:var(--mu);">Ingen poäng registrerad ännu</span>'}
+        ${st.length&&st[0].score>0?st.map((s,i)=>`<div style="font-size:12px;color:var(--tx);">${medals[i]} ${esc(s.name)} <b style="color:var(--g);">${s.score}</b></div>`).join(''):'<span style="font-size:12px;color:var(--mu);">Ingen poäng registrerad ännu</span>'}
       </div>
+      ${prizeLine}
+      <div style="margin-top:12px;display:flex;gap:8px;">
+        <button class="btn btn-d" data-comp-end="${c.id}">🛑 Avsluta i förtid</button>
+        <button class="btn btn-s" data-comp-del="${c.id}" style="margin-left:auto;">Ta bort</button>
+      </div>
+    </div>`;
+}
+
+function compCoachGroupCard(c){
+  const total=compTeamScore(c);
+  const goal=n(c.goal)||0;
+  const pct=goal?Math.min(Math.round(total/goal*100),100):0;
+  const reached=goal&&total>=goal;
+  const dl=compDaysLeft(c.end_date);
+  const cnt=(Array.isArray(c.participant_ids)?c.participant_ids.length:0)||(S.standings[c.id]||[]).length;
+  return `
+    <div style="border:1px solid var(--br);border-radius:12px;padding:15px 16px;margin-bottom:11px;background:var(--w);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--tx);">${esc(c.title)}</div>
+          <div style="font-size:12px;color:var(--mu);margin-top:3px;">${METRIC_ICON[c.metric]||'🎯'} ${esc(METRIC_LABELS[c.metric]||c.metric)} · ${fmtPeriod(c.start_date,c.end_date)} · ${dl>0?dl+' dagar kvar':(dl===0?'sista dagen':'tiden ute')} · 👥 ${cnt} säljare</div>
+        </div>
+        <span style="background:#FAEEDA;color:var(--gd);font-size:10px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;">GRUPPMÅL</span>
+      </div>
+      <div style="margin-top:13px;">
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px;"><span style="color:var(--tx);">Laget: ${total} / ${goal}</span><span style="color:${reached?'var(--g)':'var(--mu)'};">${reached?'✅ Mål uppnått!':pct+'%'}</span></div>
+        <div style="height:11px;background:var(--bg2);border-radius:6px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--g),var(--gold));border-radius:6px;"></div></div>
+      </div>
+      ${c.prize?`<div style="margin-top:11px;font-size:11.5px;color:var(--gd);">🎁 Lagpris: ${esc(c.prize)}</div>`:''}
       <div style="margin-top:12px;display:flex;gap:8px;">
         <button class="btn btn-d" data-comp-end="${c.id}">🛑 Avsluta i förtid</button>
         <button class="btn btn-s" data-comp-del="${c.id}" style="margin-left:auto;">Ta bort</button>
@@ -2121,15 +2170,23 @@ function compCoachCard(c){
 
 function compFinishedCard(c){
   const st=S.standings[c.id]||[];
-  const w=c.winner_id?st.find(s=>s.seller_id===c.winner_id):null;
+  let body;
+  if(c.type==='lag'){
+    const total=compTeamScore(c),goal=n(c.goal)||0,reached=goal&&total>=goal;
+    body=`<div style="font-size:13px;font-weight:700;color:${reached?'var(--g)':'var(--mu)'};white-space:nowrap;">${reached?'✅ Mål uppnått':'🎯 '+total+' / '+goal}</div>`;
+  }else{
+    const top=st.slice(0,3).filter(s=>s.score>0);
+    const medals=['🥇','🥈','🥉'],prizes=[c.prize,c.prize_2,c.prize_3];
+    body=top.length?`<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end;">${top.map((s,i)=>`<div style="font-size:12.5px;font-weight:700;color:var(--gold);white-space:nowrap;">${medals[i]} ${esc(s.name)}${prizes[i]?' · 🎁 '+esc(prizes[i]):''}</div>`).join('')}</div>`:'<div style="font-size:13px;font-weight:700;color:var(--mu);">Ingen vinnare</div>';
+  }
   return `
     <div style="border:1px solid var(--br);border-radius:12px;padding:13px 16px;margin-bottom:10px;background:var(--bg);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
         <div>
           <div style="font-size:14px;font-weight:700;color:var(--tx);">🎉 ${esc(c.title)} <span style="font-size:10px;background:var(--mu);color:#fff;padding:2px 7px;border-radius:4px;font-weight:700;">AVSLUTAD</span></div>
-          <div style="font-size:12px;color:var(--mu);margin-top:3px;">${fmtPeriod(c.start_date,c.end_date)}${c.prize?' · Pris: '+esc(c.prize):''}</div>
+          <div style="font-size:12px;color:var(--mu);margin-top:3px;">${fmtPeriod(c.start_date,c.end_date)} · ${c.type==='lag'?'Gruppmål':'Individuell'}</div>
         </div>
-        <div style="font-size:13px;font-weight:700;color:var(--gold);white-space:nowrap;">🏆 ${w?esc(w.name):'Ingen vinnare'}</div>
+        ${body}
       </div>
       <div style="margin-top:9px;"><button class="btn btn-s" data-comp-del="${c.id}">Ta bort</button></div>
     </div>`;
@@ -2142,45 +2199,84 @@ function showCompCreateModal(){
   const in7=new Date(Date.now()+7*86400000).toISOString().split('T')[0];
   const istyle='width:100%;padding:9px 11px;border:1.5px solid var(--br);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);outline:none;font-family:inherit;box-sizing:border-box;';
   const lstyle='display:block;font-size:11px;font-weight:600;color:var(--mu);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;';
+  const sellers=S.allSellers||[];
+  const sellerChecks=sellers.length
+    ?sellers.map(s=>`<label style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--br);border-radius:7px;font-size:13px;cursor:pointer;background:var(--bg);"><input type="checkbox" class="cn-pp" value="${s.id}" checked style="width:15px;height:15px;"> ${esc(s.name)}</label>`).join('')
+    :'<div style="font-size:12px;color:var(--mu);">Inga säljare hittades.</div>';
+  const tBtn=(t,lbl,on)=>`<button type="button" class="cn-typ" data-typ="${t}" style="flex:1;padding:9px;border:1.5px solid ${on?'var(--g)':'var(--br)'};border-radius:8px;background:${on?'var(--g)':'var(--bg)'};color:${on?'#fff':'var(--tx)'};font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit;">${lbl}</button>`;
   ov.innerHTML=`
-    <div class="modal" style="max-width:470px;">
+    <div class="modal" style="max-width:480px;">
       <h2>🏆 Skapa tävling</h2>
+      <label style="${lstyle}">Typ av tävling</label>
+      <div style="display:flex;gap:8px;margin-bottom:13px;">${tBtn('individuell','🏅 Individuell',true)}${tBtn('lag','🎯 Gruppmål',false)}</div>
       <div style="margin-bottom:11px;"><label style="${lstyle}">Titel</label><input id="cn-title" type="text" placeholder="t.ex. Veckans säljkung" style="${istyle}"></div>
-      <div style="margin-bottom:11px;"><label style="${lstyle}">Vad mäts</label><select id="cn-metric" style="${istyle}"><optgroup label="Paket"><option value="salj">📦 Sälj – alla paket</option><option value="singel">🧍 Singel-paket</option><option value="par">👥 Par-paket</option><option value="familj">👨‍👩‍👧 Familj-paket</option></optgroup><optgroup label="Tilläggstjänster"><option value="tillagg">➕ Tilläggstjänster – alla</option><option value="tillagg_singel">➕ Tillägg Singel</option><option value="tillagg_par">➕ Tillägg Par</option><option value="tillagg_familj">➕ Tillägg Familj</option></optgroup><optgroup label="Aktivitet"><option value="samtal">📞 Antal samtal</option><option value="stangda">🤝 Stängda affärer</option></optgroup></select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:11px;">
         <div><label style="${lstyle}">Start</label><input id="cn-start" type="date" value="${today}" style="${istyle}"></div>
         <div><label style="${lstyle}">Slut</label><input id="cn-end" type="date" value="${in7}" style="${istyle}"></div>
       </div>
-      <div style="margin-bottom:11px;"><label style="${lstyle}">Mål (valfritt)</label><input id="cn-goal" type="number" min="0" placeholder="Tomt = vinst går till 1:an" style="${istyle}"></div>
-      <div style="margin-bottom:1.2rem;"><label style="${lstyle}">Pris</label><input id="cn-prize" type="text" placeholder="t.ex. Presentkort 1000 kr" style="${istyle}"></div>
+      <div id="cn-fi">
+        <div style="margin-bottom:11px;"><label style="${lstyle}">Vad mäts</label><select id="cn-metric" style="${istyle}"><optgroup label="Paket"><option value="salj">📦 Sälj – alla paket</option><option value="singel">🧍 Singel-paket</option><option value="par">👥 Par-paket</option><option value="familj">👨‍👩‍👧 Familj-paket</option></optgroup><optgroup label="Tilläggstjänster"><option value="tillagg">➕ Tilläggstjänster – alla</option><option value="tillagg_singel">➕ Tillägg Singel</option><option value="tillagg_par">➕ Tillägg Par</option><option value="tillagg_familj">➕ Tillägg Familj</option></optgroup><optgroup label="Aktivitet"><option value="samtal">📞 Antal samtal</option><option value="stangda">🤝 Stängda affärer</option></optgroup></select></div>
+        <div style="margin-bottom:11px;"><label style="${lstyle}">Mål (valfritt)</label><input id="cn-goal" type="number" min="0" placeholder="Tomt = vinst går till 1:an" style="${istyle}"></div>
+        <div style="margin-bottom:11px;"><label style="${lstyle}">🥇 1:a pris</label><input id="cn-prize" type="text" placeholder="t.ex. Presentkort 1000 kr" style="${istyle}"></div>
+        <div style="margin-bottom:11px;"><label style="${lstyle}">🥈 2:a pris (valfritt)</label><input id="cn-prize2" type="text" placeholder="t.ex. Biobiljetter" style="${istyle}"></div>
+        <div style="margin-bottom:1.2rem;"><label style="${lstyle}">🥉 3:e pris (valfritt)</label><input id="cn-prize3" type="text" placeholder="t.ex. Fika på kontoret" style="${istyle}"></div>
+      </div>
+      <div id="cn-fg" style="display:none;">
+        <div style="margin-bottom:11px;"><label style="${lstyle}">Vad mäts</label><select id="cn-metric-g" style="${istyle}"><option value="salj">📦 Antal sälj</option><option value="tillagg">➕ Tilläggstjänster</option></select></div>
+        <div style="margin-bottom:11px;"><label style="${lstyle}">Lagmål (antal)</label><input id="cn-goal-g" type="number" min="1" placeholder="t.ex. 100" style="${istyle}"></div>
+        <div style="margin-bottom:11px;"><label style="${lstyle}">Lagpris (valfritt)</label><input id="cn-prize-g" type="text" placeholder="t.ex. Lagmiddag" style="${istyle}"></div>
+        <div style="margin-bottom:1.2rem;"><label style="${lstyle}">Vilka säljare är med</label><div style="display:flex;flex-direction:column;gap:6px;max-height:175px;overflow-y:auto;">${sellerChecks}</div></div>
+      </div>
       <div id="cn-msg" style="display:none;color:var(--err);font-size:12px;margin-bottom:.8rem;font-weight:600;"></div>
       <div class="modal-actions">
         <button class="btn btn-s" id="cn-cancel">Avbryt</button>
         <button class="btn btn-p" id="cn-save">Skapa tävling</button>
       </div>
     </div>`;
+  let typ='individuell';
+  ov.querySelectorAll('.cn-typ').forEach(btn=>btn.addEventListener('click',()=>{
+    typ=btn.dataset.typ;
+    ov.querySelectorAll('.cn-typ').forEach(b=>{
+      const on=b.dataset.typ===typ;
+      b.style.background=on?'var(--g)':'var(--bg)';
+      b.style.color=on?'#fff':'var(--tx)';
+      b.style.borderColor=on?'var(--g)':'var(--br)';
+    });
+    ov.querySelector('#cn-fi').style.display=typ==='individuell'?'':'none';
+    ov.querySelector('#cn-fg').style.display=typ==='lag'?'':'none';
+  }));
   ov.querySelector('#cn-cancel').addEventListener('click',()=>{mc.innerHTML='';});
   ov.addEventListener('click',e=>{if(e.target===ov)mc.innerHTML='';});
   ov.querySelector('#cn-save').addEventListener('click',async()=>{
     const msg=ov.querySelector('#cn-msg');
     function err(t){msg.style.display='block';msg.textContent=t;}
     const title=ov.querySelector('#cn-title').value.trim();
-    const prize=ov.querySelector('#cn-prize').value.trim();
     const start=ov.querySelector('#cn-start').value;
     const end=ov.querySelector('#cn-end').value;
-    const goalRaw=ov.querySelector('#cn-goal').value;
     if(!title){err('Ange en titel.');return;}
     if(!start||!end||end<start){err('Kontrollera start- och slutdatum.');return;}
+    let row={title:title,start_date:start,end_date:end,active:true,type:typ};
+    if(typ==='lag'){
+      const goalRaw=ov.querySelector('#cn-goal-g').value;
+      if(!goalRaw||parseInt(goalRaw)<1){err('Ange ett lagmål (minst 1).');return;}
+      const pp=Array.from(ov.querySelectorAll('.cn-pp:checked')).map(c=>c.value);
+      if(!pp.length){err('Välj minst en säljare som ska vara med.');return;}
+      row.metric=ov.querySelector('#cn-metric-g').value;
+      row.goal=parseInt(goalRaw);
+      row.prize=ov.querySelector('#cn-prize-g').value.trim()||null;
+      row.participant_ids=pp;
+    }else{
+      const goalRaw=ov.querySelector('#cn-goal').value;
+      row.metric=ov.querySelector('#cn-metric').value;
+      row.goal=goalRaw?parseInt(goalRaw):null;
+      row.prize=ov.querySelector('#cn-prize').value.trim()||null;
+      row.prize_2=ov.querySelector('#cn-prize2').value.trim()||null;
+      row.prize_3=ov.querySelector('#cn-prize3').value.trim()||null;
+      row.participant_ids=[];
+    }
     const btn=ov.querySelector('#cn-save');btn.disabled=true;btn.textContent='Skapar…';
     let error=null;
-    try{
-      const res=await sb.from('competitions').insert({
-        title:title,metric:ov.querySelector('#cn-metric').value,
-        start_date:start,end_date:end,
-        goal:goalRaw?parseInt(goalRaw):null,prize:prize||null,active:true
-      });
-      error=res.error;
-    }catch(e){error=e;}
+    try{const res=await sb.from('competitions').insert(row);error=res.error;}catch(e){error=e;}
     if(error){btn.disabled=false;btn.textContent='Skapa tävling';err('Kunde inte spara: '+(error.message||error));return;}
     mc.innerHTML='';render();
   });
@@ -2188,10 +2284,18 @@ function showCompCreateModal(){
 }
 
 function renderTavlingarSeller(main){
-  const active=S.competitions.filter(c=>c.active);
   const meId=S.seller&&S.seller.id;
+  const active=S.competitions.filter(c=>{
+    if(!c.active)return false;
+    if(c.type==='lag'){
+      const ids=Array.isArray(c.participant_ids)?c.participant_ids:[];
+      return !ids.length||ids.indexOf(meId)>=0;
+    }
+    return true;
+  });
   let leading=false;
   const cards=active.map(c=>{
+    if(c.type==='lag')return compSellerGroupCard(c);
     const st=S.standings[c.id]||[];
     const myRank=st.findIndex(s=>s.seller_id===meId);
     const me_=myRank>=0?st[myRank]:{seller_id:meId,score:0};
@@ -2269,6 +2373,30 @@ function compSellerCard(c,st,myRank,me_,leader,meId){
     <div style="background:var(--w);padding:4px 13px 15px;">
       <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ställning</div>
       ${rankList}
+    </div>
+  </div>`;
+}
+
+function compSellerGroupCard(c){
+  const total=compTeamScore(c);
+  const goal=n(c.goal)||0;
+  const pct=goal?Math.min(Math.round(total/goal*100),100):0;
+  const reached=goal&&total>=goal;
+  const dl=compDaysLeft(c.end_date);
+  return `
+  <div class="comp-card-seller">
+    <div style="background:linear-gradient(135deg,var(--gd),var(--g));padding:14px 15px;color:#fff;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.1em;opacity:.85;">🎯 GRUPPMÅL · HELA LAGET</div>
+      <div style="font-size:16px;font-weight:800;margin-top:4px;line-height:1.2;">${esc(c.title)}</div>
+      <div style="font-size:11px;opacity:.82;margin-top:3px;">${METRIC_ICON[c.metric]||'🎯'} ${esc(METRIC_LABELS[c.metric]||c.metric)} · ${dl>1?dl+' dagar kvar':(dl===1?'1 dag kvar':(dl===0?'⏰ SISTA DAGEN!':'tiden ute'))}</div>
+      ${c.prize?`<div style="display:inline-block;background-color:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;margin-top:8px;">🎁 ${esc(c.prize)}</div>`:''}
+      <div style="margin-top:11px;">
+        <div style="font-size:11.5px;font-weight:600;margin-bottom:6px;color:rgba(255,255,255,.92);">Laget: ${total} / ${goal} ${reached?'✅ MÅL UPPNÅTT!':''}</div>
+        <div style="height:10px;background:rgba(255,255,255,.22);border-radius:5px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#E8C76A,#fff);border-radius:5px;transition:width 1.1s cubic-bezier(.2,.8,.2,1);"></div></div>
+      </div>
+    </div>
+    <div style="background:var(--w);padding:14px 15px;font-size:12.5px;font-weight:600;color:var(--tx);text-align:center;">
+      ${reached?'🎉 Ni klarade det tillsammans!':'Kämpa tillsammans – '+Math.max(goal-total,0)+' kvar till målet! 💪'}
     </div>
   </div>`;
 }
