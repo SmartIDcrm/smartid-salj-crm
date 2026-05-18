@@ -3417,10 +3417,7 @@ function renderTeamStats(main){
     return;
   }
   if(!S.tsSellerId||!sellers.find(s=>s.id===S.tsSellerId))S.tsSellerId=sellers[0].id;
-  if(!S.tsDate)S.tsDate=new Date().toISOString().split('T')[0];
   const seller=sellers.find(s=>s.id===S.tsSellerId);
-  const existing=(S.allStats||[]).find(x=>x.seller_id===S.tsSellerId&&x.date===S.tsDate);
-  const d=existing?{...existing}:emptyDay(S.tsDate);
 
   /* Säljarens egen provision (säljartariff 5/10/15/5) över all registrerad statistik */
   const SR=ROLES.saljare;
@@ -3448,27 +3445,6 @@ function renderTeamStats(main){
       </div>
     </div>`;
 
-  const editForm=`
-    <details class="ts-edit" ${S.tsEditOpen?'open':''} style="margin-top:1.5rem;border:1px solid var(--br);border-radius:10px;background:var(--w);">
-      <summary style="cursor:pointer;font-size:14px;font-weight:700;color:var(--gd);padding:13px 15px;user-select:none;list-style-position:inside;">✏️ Lägg till / ta bort sälj för ${esc(seller.name)}</summary>
-      <div style="padding:4px 15px 16px;">
-        <div class="fl" style="max-width:220px;margin-bottom:1rem;"><label>Datum</label><input type="date" id="ts-date" value="${S.tsDate}"></div>
-        <div style="font-size:12px;font-weight:700;color:var(--gd);margin:0 0 .5rem;">💰 Sälj – Paket</div>
-        ${saljRow('Singel','189 kr/mån','s189',d)}${saljRow('Par','229 kr/mån','s229',d)}${saljRow('Familj','279 kr/mån','s279',d)}
-        <div style="font-size:12px;font-weight:700;color:var(--gd);margin:1rem 0 .5rem;">➕ Sälj – Tilläggstjänster</div>
-        ${saljRow('Tillägg Singel','+49 kr','a49',d)}${saljRow('Tillägg Par','+79 kr','a79',d)}${saljRow('Tillägg Familj','+99 kr','a99',d)}
-        <div class="prov-grid" style="margin-top:1rem;">
-          <div class="prov-item"><span class="pl">Totalt sålda paket</span><span class="pv" id="ps-pkg">0</span></div>
-          <div class="prov-item"><span class="pl">Totalt sålda tillägg</span><span class="pv" id="ps-add">0</span></div>
-          <div class="prov-item"><span class="pl">Totalt ångrade</span><span class="pv" id="ps-ang" style="color:var(--err);">0</span></div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
-          <button class="btn btn-p" id="ts-save">💾 Spara för ${esc(seller.name)}</button>
-        </div>
-        <div id="ts-msg" style="text-align:right;margin-top:.6rem;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;"></div>
-      </div>
-    </details>`;
-
   main.innerHTML=`
     <div class="ph">
       <div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">All provision och statistik per säljare</div></div>
@@ -3481,23 +3457,9 @@ function renderTeamStats(main){
       </div>
       ${provSec}
       ${renderAllStatsSeller(seller,S.allStats||[])}
-      ${editForm}
     </div>`;
 
-  function val(id){const e=document.getElementById(id);return e?parseInt(e.value)||0:0;}
-  function collect(){['s189','s229','s279','a49','a79','a99'].forEach(k=>{d['sold_'+k]=val('f-'+k);d['ang_'+k]=val('f-a'+k);});}
-  function refresh(){collect();
-    const e1=document.getElementById('ps-pkg');if(e1)e1.textContent=dayTotalSalj(d);
-    const e2=document.getElementById('ps-add');if(e2)e2.textContent=dayTotalAddon(d);
-    const e3=document.getElementById('ps-ang');if(e3)e3.textContent=dayTotalAng(d);
-  }
-  main.querySelectorAll('input[type=number]').forEach(inp=>inp.addEventListener('input',refresh));
-  refresh();
-  const det=main.querySelector('.ts-edit');
-  if(det)det.addEventListener('toggle',()=>{S.tsEditOpen=det.open;});
   main.querySelector('#ts-seller').addEventListener('change',e=>{S.tsSellerId=e.target.value;renderTeamStats(main);});
-  const dt=main.querySelector('#ts-date');
-  if(dt)dt.addEventListener('change',e=>{if(e.target.value){S.tsDate=e.target.value;S.tsEditOpen=true;renderTeamStats(main);}});
   main.querySelector('#ts-import').addEventListener('click',showImportModal);
   const dayToggle=document.getElementById('as-day-toggle');
   if(dayToggle)dayToggle.addEventListener('click',()=>{
@@ -3506,28 +3468,6 @@ function renderTeamStats(main){
     oldRows.forEach(r=>{r.style.display=expand?'':'none';});
     dayToggle.innerHTML=expand?'▲ Visa bara senaste veckan'
       :'▼ Visa alla '+main.querySelectorAll('.as-day-row').length+' dagar <span style="color:var(--mu);font-weight:400;">('+oldRows.length+' äldre dolda)</span>';
-  });
-  const sv=main.querySelector('#ts-save');
-  if(sv)sv.addEventListener('click',async()=>{
-    collect();
-    sv.disabled=true;sv.textContent='Sparar…';
-    const row={seller_id:S.tsSellerId,date:S.tsDate,
-      samtal:n(d.samtal),nej:n(d.nej),callbacks:n(d.callbacks),aktiv_min:n(d.aktiv_min),
-      sold_s189:n(d.sold_s189),sold_s229:n(d.sold_s229),sold_s279:n(d.sold_s279),
-      sold_a49:n(d.sold_a49),sold_a79:n(d.sold_a79),sold_a99:n(d.sold_a99),
-      ang_s189:n(d.ang_s189),ang_s229:n(d.ang_s229),ang_s279:n(d.ang_s279),
-      ang_a49:n(d.ang_a49),ang_a79:n(d.ang_a79),ang_a99:n(d.ang_a99),
-      source:'manual',updated_at:new Date().toISOString()};
-    let error=null;
-    try{const r=await sb.from('seller_daily_stats').upsert(row,{onConflict:'seller_id,date'});error=r.error;}catch(e){error=e;}
-    const msg=document.getElementById('ts-msg');
-    if(error){sv.disabled=false;sv.textContent='💾 Spara för '+seller.name;if(msg){msg.style.color='var(--err)';msg.textContent='✗ Kunde inte spara: '+(error.message||error);msg.style.opacity='1';}return;}
-    S.tsEditOpen=true;
-    await loadDashboardData();
-    renderTeamStats(main);
-    const m2=document.getElementById('ts-msg');
-    if(m2){m2.style.color='var(--g)';m2.textContent='✓ Sparat för '+seller.name+'!';m2.style.opacity='1';
-      setTimeout(()=>{const e=document.getElementById('ts-msg');if(e)e.style.opacity='0';},2200);}
   });
 }
 
