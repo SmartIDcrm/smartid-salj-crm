@@ -720,7 +720,7 @@ const S={user:null,profile:null,seller:null,role:'saljare',
   allstats_from:null,allstats_to:null,allstats_seller:'',
   competitions:[],standings:{},
   training_state:{},trainingProgress:null,slideOverrides:null,trainingLoaded:false,
-  audioFiles:[],audioCat:'jatack',audioLoaded:false,
+  audioFiles:[],audioSeller:'',audioLoaded:false,
   coachSessions:[],feedbackQuestions:[],coachSellers:[],coachLoaded:false,coachOpenSession:null,
   recovery:false,
   tsSellerId:null,tsDate:null,celebrated:false,
@@ -1422,7 +1422,9 @@ function circleCard(label,sub,pct,color){
 
 function renderAllStatsTeam(rows){
   const t=k=>rows.reduce((a,d)=>a+n(d[k]),0);
-  const samtal=t('samtal'),nej=t('nej'),callbacks=t('callbacks'),aktiv=t('aktiv_min');
+  const samtal=t('samtal'),nej=t('nej'),callbacks=t('callbacks');
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const aktiv=(S.allMonthlyDialer||[]).filter(m=>m.month===thisMonth).reduce((a,m)=>a+n(m.active_min),0);
   const salj=t('sold_s189')+t('sold_s229')+t('sold_s279');
   const addon=t('sold_a49')+t('sold_a79')+t('sold_a99');
   const invalid=rows.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
@@ -1464,7 +1466,7 @@ function renderAllStatsTeam(rows){
           ${kpi('✓','green','Totalt sälj',salj,'Paket')}
           ${kpi('➕','purple','Tilläggstjänster',addon,'Sålda')}
           ${kpi('📊','purple','Konvertering',conv.toFixed(1)+'%','Sälj per samtal')}
-          ${kpi('⏱','orange','Aktiv tid',fmtMin(aktiv),'Hela laget')}
+          ${kpi('⏱','orange','Aktiv tid',fmtMin(aktiv),'Hela laget · denna månad')}
         </div>
       </div>
     </div>
@@ -2562,11 +2564,6 @@ const AUDIO_BUCKET='call-recordings';
 const AUDIO_TABLE='salj_audio_library';
 const FB_SESSIONS='salj_feedback_sessions';
 const FB_QUESTIONS='salj_feedback_questions';
-const AUDIO_CATS=[
-  {key:'jatack',label:'Ja tack',icon:'✅',color:'#1E5C4E',bg:'#EAF4EE',desc:'Lyckade avslut – så här gör vi när det funkar'},
-  {key:'callback',label:'Callback',icon:'📞',color:'#C8A84B',bg:'#FAEEDA',desc:'Återkom-samtal – kunden bokad för uppföljning'},
-  {key:'nejtack',label:'Nej tack',icon:'❌',color:'#A32D2D',bg:'#FCE8E8',desc:'Lär av invändningar och hur vi möter dem'}
-];
 function audioFmt(t){if(!isFinite(t))return '0:00';const m=Math.floor(t/60),s=Math.floor(t%60);return m+':'+(s<10?'0':'')+s;}
 
 function renderLjudfiler(main){
@@ -2578,45 +2575,84 @@ function renderLjudfiler(main){
 
 async function loadAndRenderLjudfiler(main){
   let rows=[];
-  try{const {data}=await sb.from(AUDIO_TABLE).select('*').order('created_at',{ascending:false});rows=data||[];}catch(e){}
-  for(const r of rows){
-    if(!r.storage_path){r._url=null;continue;}
+  try{
+    let q=sb.from(AUDIO_TABLE).select('*').order('created_at',{ascending:false});
+    if(S.role!=='coach'&&S.seller)q=q.eq('seller_id',S.seller.id);
+    const {data}=await q;rows=data||[];
+  }catch(e){}
+  S.audioFiles=rows;S.audioLoaded=true;
+  if(S.role==='coach'&&!S.audioSeller&&(S.allSellers||[]).length)S.audioSeller=S.allSellers[0].id;
+  if(S.tab==='ljudfiler')audioEnsureUrls(main);
+}
+
+/* Vilken säljare ljudvyn visar just nu. */
+function audioActiveSeller(){
+  if(S.role==='coach'){
+    if(!S.audioSeller&&(S.allSellers||[]).length)S.audioSeller=S.allSellers[0].id;
+    return S.audioSeller||'';
+  }
+  return (S.seller&&S.seller.id)||'';
+}
+
+/* Hämtar signerade URL:er för den aktiva säljarens spår, sen rendering. */
+async function audioEnsureUrls(main){
+  const sid=audioActiveSeller();
+  const need=S.audioFiles.filter(a=>a.seller_id===sid&&a.storage_path&&a._url===undefined);
+  for(const r of need){
     try{const {data}=await sb.storage.from(AUDIO_BUCKET).createSignedUrl(r.storage_path,3600);r._url=(data&&data.signedUrl)||null;}
     catch(e){r._url=null;}
   }
-  S.audioFiles=rows;S.audioLoaded=true;
   if(S.tab==='ljudfiler')renderLjudfilerView(main);
+}
+
+function wireAudioSellerPick(main){
+  const pick=main.querySelector('#audio-seller-pick');
+  if(pick)pick.addEventListener('change',()=>{S.audioSeller=pick.value;audioEnsureUrls(main);});
 }
 
 function renderLjudfilerView(main){
   const isCoach=S.role==='coach';
-  const activeCat=S.audioCat||'jatack';
-  const cat=AUDIO_CATS.find(c=>c.key===activeCat)||AUDIO_CATS[0];
-  const counts={};AUDIO_CATS.forEach(c=>{counts[c.key]=S.audioFiles.filter(a=>a.category===c.key).length;});
-  const audios=S.audioFiles.filter(a=>a.category===activeCat);
+  const activeSeller=audioActiveSeller();
+  const sellers=S.allSellers||[];
+  const sObj=isCoach?sellers.find(s=>s.id===activeSeller):S.seller;
+  const sellerName=(sObj&&sObj.name)||'';
+  const audios=S.audioFiles.filter(a=>a.seller_id===activeSeller);
   let html=`
     <div class="ph">
-      <div><div class="ph-t">🎧 Ljudbibliotek</div><div class="ph-s">${isCoach?'Ladda upp samtalsinspelningar för säljarna att lyssna på':'Här hittar du samtal som din coach delat med dig'}</div></div>
+      <div><div class="ph-t">🎧 Ljudbibliotek</div><div class="ph-s">${isCoach?'Välj en säljare och ladda upp upp till 5 samtal för just hen':'Samtal som din coach valt ut åt dig'}</div></div>
     </div>
-    <div class="ca">
-      <div class="audio-cat-tabs">
-        ${AUDIO_CATS.map(c=>`<button class="audio-cat-tab ${c.key===activeCat?'active':''}" data-cat="${c.key}" style="--cat-color:${c.color};--cat-bg:${c.bg};">
-          <span class="audio-cat-icon">${c.icon}</span><span class="audio-cat-label">${c.label}</span><span class="audio-cat-count">${counts[c.key]}</span>
-        </button>`).join('')}
-      </div>
-      <div class="audio-cat-header" style="--cat-color:${cat.color};--cat-bg:${cat.bg};">
-        <div class="audio-cat-header-icon">${cat.icon}</div>
-        <div><div class="audio-cat-header-title">${cat.label}</div><div class="audio-cat-header-desc">${cat.desc}</div></div>
-        <div class="audio-cat-header-stats">${counts[activeCat]} / 5</div>
+    <div class="ca">`;
+  if(isCoach){
+    if(!sellers.length){
+      main.innerHTML=html+`<div class="empty"><p>Inga säljare upplagda</p><small>Lägg till säljare under Säljare-fliken först.</small></div></div>`;
+      return;
+    }
+    html+=`<div class="fl" style="max-width:340px;margin-bottom:1.4rem;">
+        <label>Säljare</label>
+        <select id="audio-seller-pick">
+          ${sellers.map(s=>`<option value="${s.id}"${s.id===activeSeller?' selected':''}>${esc(s.name)}</option>`).join('')}
+        </select>
+      </div>`;
+  }
+  if(!activeSeller){
+    main.innerHTML=html+`<div class="empty"><p>Ingen säljare vald</p></div></div>`;
+    if(isCoach)wireAudioSellerPick(main);
+    return;
+  }
+  html+=`
+      <div class="audio-cat-header" style="--cat-color:var(--g);--cat-bg:#EAF4EE;">
+        <div class="audio-cat-header-icon">🎧</div>
+        <div><div class="audio-cat-header-title">${esc(sellerName)}</div><div class="audio-cat-header-desc">${isCoach?'Säljarens individuella ljudspår':'Dina ljudspår'}</div></div>
+        <div class="audio-cat-header-stats">${audios.length} / 5</div>
       </div>`;
   if(isCoach){
     html+=`
       <div class="audio-upload-card-modern">
         <div class="audio-upload-icon">📤</div>
         <div style="flex:1;">
-          <div style="font-weight:700;color:var(--gd);font-size:14px;margin-bottom:.4rem;">Ladda upp ny ljudfil till "${cat.label}"</div>
+          <div style="font-weight:700;color:var(--gd);font-size:14px;margin-bottom:.4rem;">Ladda upp ljudspår till ${esc(sellerName)}</div>
           <div class="audio-upload-grid-modern">
-            <input type="text" id="audio-title" placeholder="Titel (t.ex. ${activeCat==='jatack'?'Snabbt avslut – ung kund':activeCat==='callback'?'Återkom om en vecka':'Tackar nej – för dyrt'})" class="audio-input">
+            <input type="text" id="audio-title" placeholder="Titel (t.ex. Bra avslut – ung kund)" class="audio-input">
             <input type="file" id="audio-file" accept="audio/*" class="audio-file-input">
             <button id="audio-upload-btn" class="audio-upload-btn-modern">⬆️ Ladda upp</button>
           </div>
@@ -2630,10 +2666,10 @@ function renderLjudfilerView(main){
     if(a){
       const date=a.created_at?new Date(a.created_at).toLocaleDateString('sv-SE'):'';
       html+=`
-        <div class="audio-card-modern" data-id="${a.id}" style="--cat-color:${cat.color};--cat-bg:${cat.bg};animation-delay:${i*0.08}s;">
+        <div class="audio-card-modern" data-id="${a.id}" style="--cat-color:var(--g);--cat-bg:#EAF4EE;animation-delay:${i*0.08}s;">
           <div class="audio-card-num">#${i+1}</div>
           <div class="audio-card-header">
-            <div class="audio-card-icon">${cat.icon}</div>
+            <div class="audio-card-icon">🎧</div>
             <div class="audio-card-info">
               <h4 class="audio-card-title">${esc(a.title)}</h4>
               <div class="audio-card-meta"><span>📅 ${date}</span></div>
@@ -2660,31 +2696,30 @@ function renderLjudfilerView(main){
               ${a._url?`<source src="${a._url}" type="${a.mime||'audio/mpeg'}">`:''}
             </audio>
           </div>
-          ${!a._url?'<div style="font-size:11px;color:var(--err);padding:0 14px 10px;">Ljudfilen kunde inte hämtas.</div>':''}
+          ${a._url===null?'<div style="font-size:11px;color:var(--err);padding:0 14px 10px;">Ljudfilen kunde inte hämtas.</div>':''}
         </div>`;
     }else{
       html+=`
-        <div class="audio-card-empty" style="--cat-color:${cat.color};--cat-bg:${cat.bg};animation-delay:${i*0.08}s;">
+        <div class="audio-card-empty" style="--cat-color:var(--g);--cat-bg:#EAF4EE;animation-delay:${i*0.08}s;">
           <div class="audio-card-num">#${i+1}</div>
-          <div class="audio-empty-icon">${cat.icon}</div>
+          <div class="audio-empty-icon">🎧</div>
           <div class="audio-empty-text">Tom plats</div>
-          <div class="audio-empty-sub">${isCoach?'Ladda upp en ljudfil ovan':'Väntar på upload från coach'}</div>
+          <div class="audio-empty-sub">${isCoach?'Ladda upp ett ljudspår ovan':'Väntar på upload från coach'}</div>
         </div>`;
     }
   }
   html+='</div></div>';
   main.innerHTML=html;
 
-  main.querySelectorAll('.audio-cat-tab').forEach(btn=>btn.addEventListener('click',()=>{S.audioCat=btn.dataset.cat;render();}));
-
   if(isCoach){
+    wireAudioSellerPick(main);
     const upBtn=main.querySelector('#audio-upload-btn');
-    if(upBtn)upBtn.addEventListener('click',()=>uploadAudio(main,activeCat));
+    if(upBtn)upBtn.addEventListener('click',()=>uploadAudio(main,activeSeller));
     main.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',async e=>{
       e.stopPropagation();
       const id=btn.dataset.del;
       const a=S.audioFiles.find(x=>x.id===id);
-      if(!a||!confirm('Ta bort ljudfilen "'+a.title+'"?'))return;
+      if(!a||!confirm('Ta bort ljudspåret "'+a.title+'"?'))return;
       btn.disabled=true;
       try{if(a.storage_path)await sb.storage.from(AUDIO_BUCKET).remove([a.storage_path]);}catch(e){}
       try{await sb.from(AUDIO_TABLE).delete().eq('id',id);}catch(e){}
@@ -2694,25 +2729,26 @@ function renderLjudfilerView(main){
   wireAudioPlayers(main);
 }
 
-async function uploadAudio(main,cat){
+async function uploadAudio(main,sellerId){
   const titleEl=main.querySelector('#audio-title');
   const fileEl=main.querySelector('#audio-file');
   const statusEl=main.querySelector('#audio-upload-status');
   function st(t,c){statusEl.textContent=t;statusEl.style.color=c;}
+  if(!sellerId){st('⚠️ Välj en säljare först.','var(--err)');return;}
   if(!titleEl.value.trim()){st('⚠️ Skriv en titel först.','var(--err)');return;}
   if(!fileEl.files||!fileEl.files[0]){st('⚠️ Välj en ljudfil.','var(--err)');return;}
   const file=fileEl.files[0];
   if(file.size>50*1024*1024){st('⚠️ Filen är för stor (max 50 MB).','var(--err)');return;}
-  if(S.audioFiles.filter(a=>a.category===cat).length>=5){st('⚠️ Max 5 ljudfiler per kategori. Radera en först.','var(--err)');return;}
+  if(S.audioFiles.filter(a=>a.seller_id===sellerId).length>=5){st('⚠️ Max 5 ljudspår per säljare. Radera ett först.','var(--err)');return;}
   st('⏳ Laddar upp…','var(--mu)');
   const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-  const path=cat+'/'+Date.now()+'_'+safeName;
+  const path=sellerId+'/'+Date.now()+'_'+safeName;
   let upErr=null;
   try{const res=await sb.storage.from(AUDIO_BUCKET).upload(path,file);upErr=res.error;}
   catch(e){upErr=e;}
   if(upErr){st('❌ Uppladdning misslyckades: '+(upErr.message||upErr),'var(--err)');return;}
   let dbErr=null;
-  try{const res=await sb.from(AUDIO_TABLE).insert({title:titleEl.value.trim(),category:cat,storage_path:path,mime:file.type||'audio/mpeg',size:file.size});dbErr=res.error;}
+  try{const res=await sb.from(AUDIO_TABLE).insert({title:titleEl.value.trim(),seller_id:sellerId,storage_path:path,mime:file.type||'audio/mpeg',size:file.size});dbErr=res.error;}
   catch(e){dbErr=e;}
   if(dbErr){st('❌ Sparade filen men metadata misslyckades: '+(dbErr.message||dbErr),'var(--err)');return;}
   st('✓ Uppladdad!','var(--g)');
