@@ -543,7 +543,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="sbi" data-tab="mal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg><span>Mål &amp; Streak</span></button>
       <button class="sbi" data-tab="tavlingar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2h6v3a3 3 0 0 1-6 0z"/><path d="M5 3H3v1a2 2 0 0 0 2 2"/><path d="M11 3h2v1a2 2 0 0 1-2 2"/><line x1="8" y1="8" x2="8" y2="11"/><path d="M5.5 14h5l-.5-3h-4z"/></svg><span>Tävlingar</span></button>
       <div class="sb-sec coach-only">Coach-verktyg</div>
-      <button class="sbi coach-only" data-tab="team"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.5"/><circle cx="11" cy="6" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M7 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg><span>Säljare</span></button>
+      <button class="sbi coach-only" data-tab="team"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.5"/><circle cx="11" cy="6" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M7 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg><span>Lägg till säljare</span></button>
       <button class="sbi coach-only" data-tab="teamstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 14h12"/><rect x="3" y="8" width="2" height="6"/><rect x="7" y="5" width="2" height="9"/><rect x="11" y="2" width="2" height="12"/></svg><span>Statistik säljare</span></button>
       <button class="sbi coach-only" data-tab="allstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5"/></svg><span>All statistik</span></button>
       <button class="sbi coach-only" data-tab="kalender"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="12" height="11" rx="1"/><line x1="2" y1="6.5" x2="14" y2="6.5"/><line x1="5.5" y1="1.5" x2="5.5" y2="4"/><line x1="10.5" y1="1.5" x2="10.5" y2="4"/><circle cx="6" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="10" r="1" fill="currentColor"/></svg><span>Kalender</span></button>
@@ -966,11 +966,17 @@ async function loadDashboardData(){
   }catch(e){
     S.scoreboard=[];
   }
+  /* Raderade säljare ska inte synas i scoreboarden för någon */
+  try{
+    const r=await sb.from('sellers').select('id,deleted');
+    const del=new Set((r.data||[]).filter(s=>s.deleted).map(s=>s.id));
+    if(del.size)S.scoreboard=S.scoreboard.filter(x=>!del.has(x.seller_id));
+  }catch(e){}
   /* Coach: hela lagets data för All statistik */
   if(S.role==='coach'){
     try{
       const sres=await sb.from('sellers').select('*').eq('active',true).order('name',{ascending:true});
-      S.allSellers=sres.data||[];
+      S.allSellers=(sres.data||[]).filter(s=>!s.deleted);
       const ares=await sb.from('seller_daily_stats').select('*').order('date',{ascending:true});
       S.allStats=ares.data||[];
       const mres=await sb.from('salj_monthly_dialer').select('*');
@@ -1423,14 +1429,22 @@ function renderProvision(main){
 function renderCoachProvision(main){
   const thisMonth=new Date().toISOString().slice(0,7);
   const cap=fmtMonth(thisMonth);
-  const rows=(S.allStats||[]).filter(d=>String(d.date).slice(0,7)===thisMonth);
-  const sellers=S.allSellers||[];
+  const myId=(S.seller&&S.seller.id)||null;
   const sumK=(arr,k)=>arr.reduce((a,d)=>a+n(d[k]),0);
-  const sg=sumK(rows,'sold_s189'),pa=sumK(rows,'sold_s229'),fa=sumK(rows,'sold_s279');
-  const ad=sumK(rows,'sold_a49')+sumK(rows,'sold_a79')+sumK(rows,'sold_a99');
-  const pSg=sg*2,pPa=pa*4,pFa=fa*6,pAd=ad*2,tot=pSg+pPa+pFa+pAd;
+  /* Team-coachprovision (alla säljare utom coachen själv): Singel 2, Par 4, Familj 6, tillägg 2 */
+  const teamRows=(S.allStats||[]).filter(d=>String(d.date).slice(0,7)===thisMonth&&d.seller_id!==myId);
+  const sellers=(S.allSellers||[]).filter(s=>s.id!==myId);
+  const tSg=sumK(teamRows,'sold_s189'),tPa=sumK(teamRows,'sold_s229'),tFa=sumK(teamRows,'sold_s279');
+  const tAd=sumK(teamRows,'sold_a49')+sumK(teamRows,'sold_a79')+sumK(teamRows,'sold_a99');
+  const teamProv=tSg*2+tPa*4+tFa*6+tAd*2;
+  /* Coachens egna sälj: Singel 5, Par 10, Familj 15, tillägg 5 */
+  const ownRows=(S.dailyStats||[]).filter(d=>String(d.date).slice(0,7)===thisMonth);
+  const oSg=sumK(ownRows,'sold_s189'),oPa=sumK(ownRows,'sold_s229'),oFa=sumK(ownRows,'sold_s279');
+  const oAd=sumK(ownRows,'sold_a49')+sumK(ownRows,'sold_a79')+sumK(ownRows,'sold_a99');
+  const oPSg=oSg*5,oPPa=oPa*10,oPFa=oFa*15,oPAd=oAd*5,ownProv=oPSg+oPPa+oPFa+oPAd;
+  const grand=teamProv+ownProv;
   const perSeller=sellers.map(s=>{
-    const sr=rows.filter(d=>d.seller_id===s.id);
+    const sr=teamRows.filter(d=>d.seller_id===s.id);
     const a=k=>sr.reduce((x,d)=>x+n(d[k]),0);
     const ssg=a('sold_s189'),spa=a('sold_s229'),sfa=a('sold_s279');
     const sad=a('sold_a49')+a('sold_a79')+a('sold_a99');
@@ -1443,31 +1457,31 @@ function renderCoachProvision(main){
     <td class="h-num" style="color:var(--gold);">€${prov}</td>
   </tr>`;
   main.innerHTML=`
-    <div class="ph"><div><div class="ph-t">Provision <span class="role-pill">Coach</span></div><div class="ph-s">Din provision på hela teamets försäljning</div></div></div>
+    <div class="ph"><div><div class="ph-t">Provision <span class="role-pill">Coach</span></div><div class="ph-s">Coachprovision på teamet och dina egna sälj</div></div></div>
     <div class="ca">
       <div style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">📅 Avser ${cap} och uppdateras automatiskt när statistik importeras.</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
-        <div class="kpi fade-in" style="background:linear-gradient(135deg,#FAEEDA,#fff);"><div class="kpi-ic gold">€</div><div class="kpi-l">Coachprovision ${cap}</div><div class="kpi-v" style="color:var(--gold);">€${tot}</div><div class="kpi-sub">Hela teamet</div></div>
-        <div class="kpi fade-in"><div class="kpi-ic green">✓</div><div class="kpi-l">Sålda paket</div><div class="kpi-v">${sg+pa+fa}</div><div class="kpi-sub">Singel/Par/Familj</div></div>
-        <div class="kpi fade-in"><div class="kpi-ic purple">➕</div><div class="kpi-l">Tilläggstjänster</div><div class="kpi-v">${ad}</div><div class="kpi-sub">Antal sålda</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic gold">€</div><div class="kpi-l">Coachprovision (teamet)</div><div class="kpi-v" style="color:var(--gold);">€${teamProv}</div><div class="kpi-sub">Säljarnas försäljning</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic gold">€</div><div class="kpi-l">Provision egna sälj</div><div class="kpi-v" style="color:var(--gold);">€${ownProv}</div><div class="kpi-sub">Din egen försäljning</div></div>
+        <div class="kpi fade-in" style="background:linear-gradient(135deg,#FAEEDA,#fff);"><div class="kpi-ic gold">€</div><div class="kpi-l">Totalt ${cap}</div><div class="kpi-v" style="color:var(--gold);">€${grand}</div><div class="kpi-sub">Team + egna sälj</div></div>
       </div>
       <div class="sec fade-in">
-        <div class="sec-hdr"><h3>💼 Så räknas coachprovisionen</h3></div>
+        <div class="sec-hdr"><h3>👤 Egna sälj</h3><span style="font-size:11px;color:var(--mu);">Din egen försäljning</span></div>
         <div class="sec-body" style="padding:0;">
           <div class="htable-wrap"><table class="htable">
             <thead><tr><th>Kategori</th><th>Provision/st</th><th>Antal sålda</th><th>Total</th></tr></thead>
             <tbody>
-              ${catRow('Singel',2,sg,pSg)}
-              ${catRow('Par',4,pa,pPa)}
-              ${catRow('Familj',6,fa,pFa)}
-              ${catRow('Tilläggstjänst',2,ad,pAd)}
-              <tr class="tot-row"><td>TOTALT</td><td></td><td>${sg+pa+fa+ad}</td><td style="color:var(--gold);">€${tot}</td></tr>
+              ${catRow('Singel',5,oSg,oPSg)}
+              ${catRow('Par',10,oPa,oPPa)}
+              ${catRow('Familj',15,oFa,oPFa)}
+              ${catRow('Tilläggstjänst',5,oAd,oPAd)}
+              <tr class="tot-row"><td>TOTALT</td><td></td><td>${oSg+oPa+oFa+oAd}</td><td style="color:var(--gold);">€${ownProv}</td></tr>
             </tbody>
           </table></div>
         </div>
       </div>
       <div class="sec fade-in">
-        <div class="sec-hdr"><h3>👥 Provision per säljare</h3><span style="font-size:11px;color:var(--mu);">Sorterat på provision</span></div>
+        <div class="sec-hdr"><h3>👥 Coachprovision per säljare</h3><span style="font-size:11px;color:var(--mu);">Sorterat på provision</span></div>
         <div class="sec-body" style="padding:0;">
           ${perSeller.length===0?'<div class="empty"><p>Ingen försäljning '+cap+' ännu</p><small>Importera statistik så fylls det i</small></div>':`
           <div class="htable-wrap"><table class="htable">
@@ -2264,10 +2278,10 @@ function compSellerCard(c,st,myRank,me_,leader,meId){
    ============================================================ */
 function renderSellers(main){
   if(S.role!=='coach'){
-    main.innerHTML=`<div class="ph"><div><div class="ph-t">Säljare</div></div></div><div class="ca"><div class="notice warn">⚠️ Den här vyn är endast för coacher.</div></div>`;
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Lägg till säljare</div></div></div><div class="ca"><div class="notice warn">⚠️ Den här vyn är endast för coacher.</div></div>`;
     return;
   }
-  main.innerHTML=`<div class="ph"><div><div class="ph-t">Säljare</div><div class="ph-s">Laddar…</div></div></div>
+  main.innerHTML=`<div class="ph"><div><div class="ph-t">Lägg till säljare</div><div class="ph-s">Laddar…</div></div></div>
     <div class="ca"><div class="empty"><p>Laddar säljare…</p></div></div>`;
   loadAndRenderSellers(main);
 }
@@ -2277,6 +2291,7 @@ async function loadAndRenderSellers(main){
   try{const r=await sb.from('sellers').select('*').order('name',{ascending:true});sellers=r.data||[];}catch(e){}
   try{const r=await sb.from('profiles').select('*');profiles=r.data||[];}catch(e){}
   if(S.tab!=='team')return;
+  sellers=sellers.filter(s=>!s.deleted);
   S.allSellers=sellers.filter(s=>s.active);
   const roleOf=s=>{const p=profiles.find(x=>x.seller_id===s.id||x.id===s.user_id);return p?p.role:'saljare';};
   const active=sellers.filter(s=>s.active);
@@ -2288,7 +2303,7 @@ async function loadAndRenderSellers(main){
       <td style="text-align:left;font-size:13px;color:var(--mu);">${esc(s.email||'–')}</td>
       <td style="font-size:12px;font-weight:600;">${r==='coach'?'👑 Coach':'Säljare'}</td>
       <td style="font-size:12px;font-weight:600;color:${s.active?'var(--g)':'var(--mu)'};">${s.active?'● Aktiv':'○ Inaktiv'}</td>
-      <td style="text-align:right;"><button class="btn btn-s btn-xs" data-toggle-seller="${s.id}" data-cur="${s.active?'1':'0'}">${s.active?'Inaktivera':'Aktivera'}</button></td>
+      <td style="text-align:right;white-space:nowrap;"><button class="btn btn-s btn-xs" data-toggle-seller="${s.id}" data-cur="${s.active?'1':'0'}">${s.active?'Inaktivera':'Aktivera'}</button><button class="btn btn-d btn-xs" data-del-seller="${s.id}" data-name="${esc(s.name||'')}" style="margin-left:6px;">Radera</button></td>
     </tr>`;
   };
   const tbl=rows=>`<div class="htable-wrap"><table class="htable">
@@ -2296,14 +2311,14 @@ async function loadAndRenderSellers(main){
     <tbody>${rows.map(row).join('')}</tbody></table></div>`;
   main.innerHTML=`
     <div class="ph">
-      <div><div class="ph-t">Säljare <span class="role-pill">Coach</span></div><div class="ph-s">${active.length} aktiva i laget</div></div>
-      <div class="ph-a"><button class="btn btn-p" id="seller-add">+ Bjud in säljare</button></div>
+      <div><div class="ph-t">Lägg till säljare <span class="role-pill">Coach</span></div><div class="ph-s">${active.length} aktiva i laget</div></div>
+      <div class="ph-a"><button class="btn btn-p" id="seller-add">+ Lägg till säljare</button></div>
     </div>
     <div class="ca">
       <div class="sec fade-in">
         <div class="sec-hdr"><h3>Laget (${active.length})</h3></div>
         <div class="sec-body" style="padding:0;">
-          ${active.length===0?'<div class="empty"><p>Inga aktiva säljare ännu</p><small>Klicka Bjud in säljare för att lägga till någon</small></div>':tbl(active)}
+          ${active.length===0?'<div class="empty"><p>Inga aktiva säljare ännu</p><small>Klicka Lägg till säljare för att lägga till någon</small></div>':tbl(active)}
         </div>
       </div>
       ${inactive.length?`<div class="sec fade-in"><div class="sec-hdr"><h3>Inaktiverade (${inactive.length})</h3></div><div class="sec-body" style="padding:0;">${tbl(inactive)}</div></div>`:''}
@@ -2314,6 +2329,15 @@ async function loadAndRenderSellers(main){
     if(cur&&!confirm('Inaktivera säljaren? De försvinner ur scoreboards och statistik men datan finns kvar.'))return;
     b.disabled=true;
     try{await sb.from('sellers').update({active:!cur}).eq('id',id);}catch(e){}
+    loadAndRenderSellers(main);
+  }));
+  main.querySelectorAll('[data-del-seller]').forEach(b=>b.addEventListener('click',async()=>{
+    const id=b.dataset.delSeller,nm=b.dataset.name||'säljaren';
+    if(!confirm('Radera '+nm+' permanent?\n\nSäljaren tas bort helt och försvinner ur scoreboarden för övriga säljare. Tidigare sälj finns kvar i statistiken.'))return;
+    b.disabled=true;
+    let err=null;
+    try{const r=await sb.from('sellers').update({deleted:true}).eq('id',id);err=r.error;}catch(e){err=e;}
+    if(err){b.disabled=false;alert('Kunde inte radera: '+(err.message||err));return;}
     loadAndRenderSellers(main);
   }));
 }
@@ -3187,8 +3211,8 @@ function renderTeamStats(main){
   if(S.role!=='coach'){renderPlaceholder(main,'teamstats');return;}
   const sellers=S.allSellers||[];
   if(!sellers.length){
-    main.innerHTML=`<div class="ph"><div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">Fyll i siffror åt en säljare</div></div></div>
-      <div class="ca"><div class="empty"><p>Inga säljare ännu</p><small>Bjud in säljare i Säljare-fliken först</small></div></div>`;
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">Lägg till / ta bort sälj</div></div></div>
+      <div class="ca"><div class="empty"><p>Inga säljare ännu</p><small>Lägg till säljare i fliken Lägg till säljare först</small></div></div>`;
     return;
   }
   if(!S.tsSellerId||!sellers.find(s=>s.id===S.tsSellerId))S.tsSellerId=sellers[0].id;
@@ -3199,7 +3223,7 @@ function renderTeamStats(main){
 
   main.innerHTML=`
     <div class="ph">
-      <div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">${existing?'Redigerar en sparad dag':'Fyll i siffror åt en säljare'}</div></div>
+      <div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">${existing?'Redigerar en sparad dag':'Lägg till / ta bort sälj'}</div></div>
       <div class="ph-a"><button class="btn btn-s" id="ts-import">📤 Importera Excel</button></div>
     </div>
     <div class="ca">
@@ -3585,7 +3609,7 @@ async function kalSendReport(main){
 function renderPlaceholder(main,tab){
   const titles={dagligt:'Daglig rapport',historik:'Historik',provision:'Provision',
     produktutbildning:'Produktutbildning',saljutbildning:'Säljutbildning',ljudfiler:'Ljudfiler',
-    mal:'Mål & Streak',tavlingar:'Tävlingar',team:'Säljare',teamstats:'Statistik säljare',allstats:'All statistik'};
+    mal:'Mål & Streak',tavlingar:'Tävlingar',team:'Lägg till säljare',teamstats:'Statistik säljare',allstats:'All statistik'};
   const title=titles[tab]||'Sida';
   main.innerHTML=`
     <div class="ph"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">Byggs i en kommande etapp</div></div></div>
