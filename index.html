@@ -1010,7 +1010,8 @@ function render(){
    ============================================================ */
 function renderDashboard(main){
   const isCoach=S.role==='coach';
-  const days=S.dailyStats;
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const days=S.dailyStats.filter(d=>String(d.date).slice(0,7)===thisMonth);
   const totSamtal=sum(days,'samtal');
   const totSalj=sum(days,'sold_s189')+sum(days,'sold_s229')+sum(days,'sold_s279');
   const totAktiv=sum(days,'aktiv_min');
@@ -1032,16 +1033,17 @@ function renderDashboard(main){
     <div class="ph">
       <div>
         <div class="ph-t">Dashboard <span class="role-pill">${isCoach?'Coach':'Säljare'}</span></div>
-        <div class="ph-s">Översikt över ${isCoach?'din och teamets':'din'} försäljning</div>
+        <div class="ph-s">Översikt över ${isCoach?'din och teamets':'din'} försäljning denna månad</div>
       </div>
     </div>
     <div class="ca">
       ${notice}
+      <div style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">📅 Siffrorna gäller innevarande månad och nollställs vid varje månadsskifte. Hela historiken finns kvar under <strong>Historik</strong>.</div>
       ${isCoach?'<h2 style="font-size:13px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem;">👤 Min statistik</h2>':''}
       <div class="kpi-grid">
-        <div class="kpi fade-in"><div class="kpi-ic blue">📞</div><div class="kpi-l">Totalt samtal</div><div class="kpi-v">${totSamtal}</div><div class="kpi-sub">Snitt ${avgSamtal}/dag</div></div>
-        <div class="kpi fade-in"><div class="kpi-ic green">✓</div><div class="kpi-l">Totalt sälj</div><div class="kpi-v">${totSalj}</div><div class="kpi-sub">Snitt ${avgSalj}/dag</div></div>
-        <div class="kpi fade-in"><div class="kpi-ic gold">€</div><div class="kpi-l">Total provision</div><div class="kpi-v">€${totProv}</div><div class="kpi-sub">Snitt €${avgProv}/dag</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic blue">📞</div><div class="kpi-l">Samtal</div><div class="kpi-v">${totSamtal}</div><div class="kpi-sub">Snitt ${avgSamtal}/dag</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic green">✓</div><div class="kpi-l">Sälj</div><div class="kpi-v">${totSalj}</div><div class="kpi-sub">Snitt ${avgSalj}/dag</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic gold">€</div><div class="kpi-l">Provision</div><div class="kpi-v">€${totProv}</div><div class="kpi-sub">Snitt €${avgProv}/dag</div></div>
         <div class="kpi fade-in"><div class="kpi-ic purple">📊</div><div class="kpi-l">Konvertering</div><div class="kpi-v">${conv}%</div><div class="kpi-sub">Sälj per samtal</div></div>
       </div>
       ${renderSellerPackages(days)}
@@ -1056,7 +1058,7 @@ function renderSellerPackages(days){
   const box=(label,val,bg,col)=>`<div style="text-align:center;padding:1rem;background:${bg};border-radius:10px;"><div style="font-size:11px;color:${col};font-weight:700;text-transform:uppercase;letter-spacing:.06em;">${label}</div><div style="font-size:26px;font-weight:700;color:${col};margin-top:4px;">${val}</div></div>`;
   return `
     <div class="sec fade-in">
-      <div class="sec-hdr"><h3>📦 Mina sålda paket</h3><span style="font-size:11px;color:var(--mu);">Totalt alla tider</span></div>
+      <div class="sec-hdr"><h3>📦 Mina sålda paket</h3><span style="font-size:11px;color:var(--mu);">Denna månad</span></div>
       <div class="sec-body">
         <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:0;">
           ${box('Singel',singel,'#EAF4EE','var(--g)')}
@@ -1292,7 +1294,8 @@ function renderProvision(main){
       <div class="ca"><div class="notice warn">⚠️ Kontot är inte kopplat till en säljarprofil ännu.</div></div>`;
     return;
   }
-  const days=S.dailyStats;
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const days=S.dailyStats.filter(d=>String(d.date).slice(0,7)===thisMonth);
   const isCoach=S.role==='coach';
   const r=ROLES[isCoach?'coach':'saljare'];
   function cat(key,name){
@@ -1317,11 +1320,12 @@ function renderProvision(main){
   const barTot=bars.reduce((a,b)=>a+Math.max(0,b.prov),0)||1;
 
   main.innerHTML=`
-    <div class="ph"><div><div class="ph-t">Provision <span class="role-pill">${isCoach?'Coach':'Säljare'}</span></div><div class="ph-s">Din intjäning per produkt</div></div></div>
+    <div class="ph"><div><div class="ph-t">Provision <span class="role-pill">${isCoach?'Coach':'Säljare'}</span></div><div class="ph-s">Din intjäning denna månad</div></div></div>
     <div class="ca">
+      <div style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">📅 Provisionen gäller innevarande månad och nollställs vid varje månadsskifte.</div>
       ${isCoach?'<p style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">Visar din egen försäljning. Provision på säljarnas försäljning (coach-override) kopplas in när lagstatistiken byggs.</p>':''}
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
-        <div class="kpi fade-in" style="background:linear-gradient(135deg,#FAEEDA,#fff);"><div class="kpi-ic gold">€</div><div class="kpi-l">Total provision</div><div class="kpi-v" style="color:var(--gold);">€${totProv}</div><div class="kpi-sub">${nDays} dagars arbete</div></div>
+        <div class="kpi fade-in" style="background:linear-gradient(135deg,#FAEEDA,#fff);"><div class="kpi-ic gold">€</div><div class="kpi-l">Provision denna månad</div><div class="kpi-v" style="color:var(--gold);">€${totProv}</div><div class="kpi-sub">${nDays} dagars arbete</div></div>
         <div class="kpi fade-in"><div class="kpi-ic blue">📊</div><div class="kpi-l">Snitt per dag</div><div class="kpi-v">€${avg}</div><div class="kpi-sub">Provision/arbetsdag</div></div>
       </div>
       <div class="sec fade-in">
