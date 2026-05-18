@@ -532,7 +532,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="sb-sec">Översikt</div>
       <button class="sbi active" data-tab="dashboard"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="5" height="6" rx="1"/><rect x="9" y="2" width="5" height="3" rx="1"/><rect x="2" y="10" width="5" height="4" rx="1"/><rect x="9" y="7" width="5" height="7" rx="1"/></svg><span>Dashboard</span></button>
       <button class="sbi coach-only" data-tab="dagligt"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="12" height="11" rx="1"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="5" y1="2" x2="5" y2="4"/><line x1="11" y1="2" x2="11" y2="4"/></svg><span>Daglig rapport</span></button>
-      <button class="sbi" data-tab="historik"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10,9"/></svg><span>Historik</span></button>
       <button class="sbi" data-tab="provision"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h10v10H3z"/><path d="M6 6l2 2 2-2M6 9l2 2 2-2"/></svg><span>Provision</span></button>
       <div class="sb-sec">Utbildning</div>
       <button class="sbi" data-tab="produktutbildning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12v9H2z"/><path d="M5 7h6M5 10h4"/></svg><span>Produktutbildning</span></button>
@@ -545,8 +544,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="sb-sec coach-only">Coach-verktyg</div>
       <button class="sbi coach-only" data-tab="team"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.5"/><circle cx="11" cy="6" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M7 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg><span>Lägg till säljare</span></button>
       <button class="sbi coach-only" data-tab="teamstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 14h12"/><rect x="3" y="8" width="2" height="6"/><rect x="7" y="5" width="2" height="9"/><rect x="11" y="2" width="2" height="12"/></svg><span>Statistik säljare</span></button>
-      <button class="sbi coach-only" data-tab="allstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5"/></svg><span>All statistik</span></button>
+      <button class="sbi" data-tab="allstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5"/></svg><span>All statistik</span></button>
       <button class="sbi coach-only" data-tab="kalender"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="12" height="11" rx="1"/><line x1="2" y1="6.5" x2="14" y2="6.5"/><line x1="5.5" y1="1.5" x2="5.5" y2="4"/><line x1="10.5" y1="1.5" x2="10.5" y2="4"/><circle cx="6" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="10" r="1" fill="currentColor"/></svg><span>Kalender</span></button>
+      <button class="sbi coach-only" data-tab="planering"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M5.5 6.5l1.5 1.5 3-3.5"/><line x1="5" y1="10.5" x2="11" y2="10.5"/></svg><span>Planering</span></button>
     </nav>
     <div class="sb-ftr">
       <button class="logout-btn" id="changepw-btn">
@@ -1022,9 +1022,9 @@ function render(){
   const main=document.getElementById('main');
   if(S.tab==='dashboard')renderDashboard(main);
   else if(S.tab==='dagligt')renderDagligt(main);
-  else if(S.tab==='historik')renderHistorik(main);
   else if(S.tab==='provision')renderProvision(main);
   else if(S.tab==='allstats')renderAllStats(main);
+  else if(S.tab==='planering')renderPlanering(main);
   else if(S.tab==='tavlingar')renderTavlingar(main);
   else if(S.tab==='team')renderSellers(main);
   else if(S.tab==='produktutbildning')renderTraining(main,'prod');
@@ -1083,7 +1083,7 @@ function renderDashboard(main){
     </div>
     <div class="ca">
       ${notice}
-      <div style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">📅 Siffrorna gäller innevarande månad och nollställs vid varje månadsskifte. Hela historiken finns kvar under <strong>Historik</strong>.</div>
+      <div style="font-size:12px;color:var(--mu);margin-bottom:1rem;line-height:1.5;">📅 Siffrorna gäller innevarande månad och nollställs vid varje månadsskifte. Hela statistiken finns kvar under <strong>All statistik</strong>.</div>
       ${isCoach?'<h2 style="font-size:13px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem;">👤 Min statistik</h2>':''}
       <div class="kpi-grid">
         <div class="kpi fade-in"><div class="kpi-ic blue">📞</div><div class="kpi-l">Samtal</div><div class="kpi-v">${totSamtal}</div><div class="kpi-sub">Snitt ${avgSamtal}/dag</div></div>
@@ -1295,53 +1295,6 @@ function renderDagligt(main){
     if(msg){msg.style.color='var(--g)';msg.textContent='✓ Sparat!';msg.style.opacity='1';
       setTimeout(()=>{const m=document.getElementById('save-msg');if(m)m.style.opacity='0';},2200);}
   });
-}
-
-/* ============================================================
-   HISTORIK
-   ============================================================ */
-function renderHistorik(main){
-  const sorted=[...S.dailyStats].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  const isCoach=S.role==='coach';
-  const tot={samtal:0,nej:0,cb:0,aktiv:0,salj:0,addon:0,ang:0,prov:0};
-  sorted.forEach(d=>{
-    tot.samtal+=n(d.samtal);tot.nej+=n(d.nej);tot.cb+=n(d.callbacks);tot.aktiv+=n(d.aktiv_min);
-    tot.salj+=dayTotalSalj(d);tot.addon+=dayTotalAddon(d);tot.ang+=dayTotalAng(d);
-    tot.prov+=dayProvision(d);
-  });
-  const notice=!S.seller?'<div class="notice warn">⚠️ Kontot är inte kopplat till en säljarprofil ännu.</div>':'';
-  main.innerHTML=`
-    <div class="ph"><div><div class="ph-t">Historik</div><div class="ph-s">${sorted.length} dagar registrerade</div></div></div>
-    <div class="ca">
-      ${notice}
-      <div class="sec fade-in">
-        <div class="sec-hdr"><h3>📅 Alla dagar</h3></div>
-        <div class="sec-body">
-          ${sorted.length===0?'<div class="empty"><p>Inga dagar registrerade ännu</p><small>Statistik visas när din coach importerat eller registrerat siffror</small></div>':`
-          <div class="htable-wrap"><table class="htable">
-            <thead><tr><th>Dag</th><th>Samtal</th><th>Nej</th><th>CB</th><th>Sälj</th><th>Tillägg</th><th>Ångr</th><th>Provision</th></tr></thead>
-            <tbody>
-              ${sorted.map(d=>`<tr>
-                <td class="h-day">${d.source==='import'?`${fmtMonth(d.date)} <span style="font-size:9px;font-weight:700;background:var(--bg2);color:var(--mu);padding:2px 6px;border-radius:6px;vertical-align:middle;">HEL MÅNAD</span>`:fmtDate(d.date)}</td>
-                <td class="h-num">${n(d.samtal)}</td>
-                <td class="h-num no">${n(d.nej)}</td>
-                <td class="h-num cb">${n(d.callbacks)}</td>
-                <td class="h-num salj">${dayTotalSalj(d)}</td>
-                <td class="h-num" style="color:var(--purple);">${dayTotalAddon(d)}</td>
-                <td class="h-num" style="color:${dayTotalAng(d)>0?'var(--err)':'var(--mu)'};">${dayTotalAng(d)}</td>
-                <td class="h-num" style="color:var(--gold);">€${dayProvision(d)}</td>
-              </tr>`).join('')}
-              <tr class="tot-row">
-                <td>TOTALT</td><td>${tot.samtal}</td><td>${tot.nej}</td><td>${tot.cb}</td>
-                <td class="salj">${tot.salj}</td><td style="color:var(--purple);">${tot.addon}</td>
-                <td style="color:${tot.ang>0?'var(--err)':'var(--mu)'};">${tot.ang}</td>
-                <td style="color:var(--gold);">€${tot.prov}</td>
-              </tr>
-            </tbody>
-          </table></div>`}
-        </div>
-      </div>
-    </div>`;
 }
 
 /* ============================================================
@@ -1686,7 +1639,7 @@ function renderAllStatsSeller(seller,allRows){
         ${di('Privata callbacks',cbPriv)}
         ${di('Bortfall (ogiltiga + unqualified)',invalid+unqual)}
         ${di('Snittsamtalstid',md&&md.avg_conv_sec?fmtSec(md.avg_conv_sec):'–')}
-        ${di('Aktiv tid i dialern',md?fmtMin(md.active_min):'–')}
+        ${S.role==='coach'?di('Aktiv tid i dialern',md?fmtMin(md.active_min):'–'):''}
       </div></div></div>`;
   const dayRow=(d,hidden)=>`<tr class="as-day-row${hidden?' as-old-row':''}"${hidden?' style="display:none;"':''}>
     <td class="h-day">${d.source==='import'?`${fmtMonth(d.date)} <span style="font-size:9px;font-weight:700;background:var(--bg2);color:var(--mu);padding:2px 6px;border-radius:6px;vertical-align:middle;">HEL MÅNAD</span>`:fmtDate(d.date)}</td>
@@ -1741,9 +1694,57 @@ function renderAllStatsSeller(seller,allRows){
     </div>`;
 }
 
+/* ── Delad datumintervall-väljare (snabbknappar + från/till) ── */
+const RANGE_BTNS=`<button class="btn btn-s btn-xs" data-range="idag">Idag</button><button class="btn btn-s btn-xs" data-range="igar">Igår</button><button class="btn btn-s btn-xs" data-range="denvecka">Denna vecka</button><button class="btn btn-s btn-xs" data-range="forravecka">Förra veckan</button><button class="btn btn-s btn-xs" data-range="denmanad">Denna månad</button><button class="btn btn-s btn-xs" data-range="forramanad">Förra månaden</button><button class="btn btn-s btn-xs" data-range="aret">Hela året</button>`;
+function rangeCalc(r){
+  const today=new Date();let from=new Date(today),to=new Date(today);
+  const mon=d=>{const x=new Date(d);x.setHours(0,0,0,0);const dow=(x.getDay()+6)%7;x.setDate(x.getDate()-dow);return x;};
+  if(r==='igar'){from.setDate(from.getDate()-1);to.setDate(to.getDate()-1);}
+  else if(r==='denvecka'){from=mon(today);}
+  else if(r==='forravecka'){from=mon(today);from.setDate(from.getDate()-7);to=new Date(from);to.setDate(to.getDate()+6);}
+  else if(r==='denmanad'){from=new Date(today.getFullYear(),today.getMonth(),1);}
+  else if(r==='forramanad'){from=new Date(today.getFullYear(),today.getMonth()-1,1);to=new Date(today.getFullYear(),today.getMonth(),0);}
+  else if(r==='aret'){from=new Date(today.getFullYear(),0,1);}
+  return {from:isoLocal(from),to:isoLocal(to)};
+}
+function rangeBarSection(fromVal,toVal){
+  return `<div class="sec fade-in"><div class="sec-hdr"><h3>📅 Datumintervall</h3></div><div class="sec-body"><div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;"><div class="fl" style="min-width:150px;"><label>Från</label><input type="date" id="rb-from" value="${fromVal}"></div><div class="fl" style="min-width:150px;"><label>Till</label><input type="date" id="rb-to" value="${toVal}"></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${RANGE_BTNS}</div></div></div></div>`;
+}
+function wireRangeBar(main,apply){
+  const f=main.querySelector('#rb-from'),t=main.querySelector('#rb-to');
+  if(f)f.addEventListener('change',e=>{if(e.target.value)apply(e.target.value,null);});
+  if(t)t.addEventListener('change',e=>{if(e.target.value)apply(null,e.target.value);});
+  main.querySelectorAll('[data-range]').forEach(b=>b.addEventListener('click',()=>{
+    const o=rangeCalc(b.dataset.range);apply(o.from,o.to);}));
+}
+function wireDayToggle(main){
+  const dayToggle=document.getElementById('as-day-toggle');
+  if(!dayToggle)return;
+  dayToggle.addEventListener('click',()=>{
+    const oldRows=main.querySelectorAll('.as-old-row');
+    const expand=oldRows.length>0&&oldRows[0].style.display==='none';
+    oldRows.forEach(r=>{r.style.display=expand?'':'none';});
+    dayToggle.innerHTML=expand?'▲ Visa bara senaste veckan':'▼ Visa alla '+main.querySelectorAll('.as-day-row').length+' dagar <span style="color:var(--mu);font-weight:400;">('+oldRows.length+' äldre dolda)</span>';
+  });
+}
+
 function renderAllStats(main){
   if(S.role!=='coach'){
-    main.innerHTML=`<div class="ph"><div><div class="ph-t">All statistik</div></div></div><div class="ca"><div class="notice warn">⚠️ Den här vyn är endast för coacher.</div></div>`;
+    if(!S.seller){
+      main.innerHTML=`<div class="ph"><div><div class="ph-t">All statistik</div></div></div><div class="ca"><div class="notice warn">⚠️ Kontot är inte kopplat till en säljarprofil ännu.</div></div>`;
+      return;
+    }
+    if(!S.allstats_from){const d=new Date();d.setDate(d.getDate()-30);S.allstats_from=isoLocal(d);}
+    if(!S.allstats_to)S.allstats_to=isoLocal(new Date());
+    const myRows=(S.dailyStats||[]).filter(d=>String(d.date)>=S.allstats_from&&String(d.date)<=S.allstats_to);
+    main.innerHTML=`
+      <div class="ph"><div><div class="ph-t">All statistik</div><div class="ph-s">Din kompletta statistik – välj period nedan</div></div></div>
+      <div class="ca">
+        ${rangeBarSection(S.allstats_from,S.allstats_to)}
+        ${renderAllStatsSeller(S.seller,myRows)}
+      </div>`;
+    wireRangeBar(main,(f,t)=>{if(f)S.allstats_from=f;if(t)S.allstats_to=t;renderAllStats(main);});
+    wireDayToggle(main);
     return;
   }
   if(!S.allstats_from){const d=new Date();d.setDate(d.getDate()-30);S.allstats_from=d.toISOString().split('T')[0];}
@@ -1797,10 +1798,7 @@ function renderAllStats(main){
             <div class="fl" style="min-width:150px;"><label>Från</label><input type="date" id="as-from" value="${S.allstats_from}"></div>
             <div class="fl" style="min-width:150px;"><label>Till</label><input type="date" id="as-to" value="${S.allstats_to}"></div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button class="btn btn-s btn-xs" data-range="igar">Igår</button>
-              <button class="btn btn-s btn-xs" data-range="vecka">Senaste veckan</button>
-              <button class="btn btn-s btn-xs" data-range="manad">Denna månad</button>
-              <button class="btn btn-s btn-xs" data-range="forramanad">Förra månaden</button>
+              ${RANGE_BTNS}
             </div>
           </div>
         </div>
@@ -1815,14 +1813,9 @@ function renderAllStats(main){
   document.getElementById('as-to').addEventListener('change',e=>{if(e.target.value){S.allstats_to=e.target.value;renderAllStats(main);}});
   main.querySelectorAll('[data-range]').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const r=btn.dataset.range,today=new Date();
-      let from=new Date(today),to=new Date(today);
-      if(r==='igar'){from.setDate(today.getDate()-1);to.setDate(today.getDate()-1);}
-      else if(r==='vecka'){from.setDate(today.getDate()-7);}
-      else if(r==='manad'){from=new Date(today.getFullYear(),today.getMonth(),1);}
-      else if(r==='forramanad'){from=new Date(today.getFullYear(),today.getMonth()-1,1);to=new Date(today.getFullYear(),today.getMonth(),0);}
-      S.allstats_from=isoLocal(from);
-      S.allstats_to=isoLocal(to);
+      const o=rangeCalc(btn.dataset.range);
+      S.allstats_from=o.from;
+      S.allstats_to=o.to;
       renderAllStats(main);
     });
   });
@@ -3472,10 +3465,13 @@ function renderTeamStats(main){
   }
   if(!S.tsSellerId||!sellers.find(s=>s.id===S.tsSellerId))S.tsSellerId=sellers[0].id;
   const seller=sellers.find(s=>s.id===S.tsSellerId);
+  if(!S.ts_from){const d=new Date();d.setDate(d.getDate()-30);S.ts_from=isoLocal(d);}
+  if(!S.ts_to)S.ts_to=isoLocal(new Date());
+  const tsRows=(S.allStats||[]).filter(x=>String(x.date)>=S.ts_from&&String(x.date)<=S.ts_to);
 
   /* Säljarens egen provision (säljartariff 5/10/15/5) över all registrerad statistik */
   const SR=ROLES.saljare;
-  const myDays=(S.allStats||[]).filter(x=>x.seller_id===seller.id);
+  const myDays=tsRows.filter(x=>x.seller_id===seller.id);
   const tk=k=>myDays.reduce((a,x)=>a+n(x[k]),0);
   const psg=tk('sold_s189'),ppa=tk('sold_s229'),pfa=tk('sold_s279');
   const pa1=tk('sold_a49'),pa2=tk('sold_a79'),pa3=tk('sold_a99');
@@ -3484,7 +3480,7 @@ function renderTeamStats(main){
   const cr=(name,rate,cnt,tot)=>`<tr><td class="h-day">${name}</td><td class="h-num" style="color:var(--gold);">€${rate}</td><td class="h-num salj">${cnt}</td><td class="h-num" style="color:var(--gold);">€${tot}</td></tr>`;
   const provSec=`
     <div class="sec fade-in">
-      <div class="sec-hdr"><h3>💰 ${esc(seller.name)} – provision</h3><span style="font-size:11px;color:var(--mu);">Säljarens egen provision · all registrerad statistik</span></div>
+      <div class="sec-hdr"><h3>💰 ${esc(seller.name)} – provision</h3><span style="font-size:11px;color:var(--mu);">Säljarens egen provision · vald period</span></div>
       <div class="sec-body" style="padding:0;">
         <div class="htable-wrap"><table class="htable">
           <thead><tr><th>Kategori</th><th>Provision/st</th><th>Antal</th><th>Total</th></tr></thead>
@@ -3509,20 +3505,15 @@ function renderTeamStats(main){
         <div class="sec-hdr"><h3>👥 Välj säljare</h3></div>
         <div class="sec-body"><div class="fl" style="max-width:280px;"><label>Säljare</label><select id="ts-seller">${sellers.map(s=>`<option value="${s.id}" ${s.id===S.tsSellerId?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div></div>
       </div>
+      ${rangeBarSection(S.ts_from,S.ts_to)}
       ${provSec}
-      ${renderAllStatsSeller(seller,S.allStats||[])}
+      ${renderAllStatsSeller(seller,tsRows)}
     </div>`;
 
   main.querySelector('#ts-seller').addEventListener('change',e=>{S.tsSellerId=e.target.value;renderTeamStats(main);});
   main.querySelector('#ts-import').addEventListener('click',showImportModal);
-  const dayToggle=document.getElementById('as-day-toggle');
-  if(dayToggle)dayToggle.addEventListener('click',()=>{
-    const oldRows=main.querySelectorAll('.as-old-row');
-    const expand=oldRows.length>0&&oldRows[0].style.display==='none';
-    oldRows.forEach(r=>{r.style.display=expand?'':'none';});
-    dayToggle.innerHTML=expand?'▲ Visa bara senaste veckan'
-      :'▼ Visa alla '+main.querySelectorAll('.as-day-row').length+' dagar <span style="color:var(--mu);font-weight:400;">('+oldRows.length+' äldre dolda)</span>';
-  });
+  wireRangeBar(main,(f,t)=>{if(f)S.ts_from=f;if(t)S.ts_to=t;renderTeamStats(main);});
+  wireDayToggle(main);
 }
 
 /* ============================================================
@@ -3838,10 +3829,115 @@ async function kalSendReport(main){
 /* ============================================================
    PLACEHOLDER — flikar som byggs i kommande etapper
    ============================================================ */
+/* ============================================================
+   PLANERING — coachens planeringspass
+   ============================================================ */
+function renderPlanering(main){
+  if(S.role!=='coach'){renderPlaceholder(main,'planering');return;}
+  if(!S.planeringLoaded){
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Planering <span class="role-pill">Coach</span></div></div></div><div class="ca"><div class="sec"><div class="sec-body"><div class="empty"><p>Laddar planering…</p></div></div></div></div>`;
+    loadPlanering(main);
+    return;
+  }
+  renderPlaneringView(main);
+}
+async function loadPlanering(main){
+  try{
+    const {data}=await sb.from('salj_planering').select('*').eq('coach_id',kalCoachId()).order('datum',{ascending:false});
+    S.planering=data||[];
+  }catch(e){S.planering=[];}
+  S.planeringLoaded=true;
+  renderPlanering(main);
+}
+function renderPlaneringView(main){
+  const list=S.planering||[];
+  const sellers=S.allSellers||[];
+  const today=isoLocal(new Date());
+  const card=p=>{
+    const d=new Date(p.datum+'T00:00:00');
+    const dStr=d.toLocaleDateString('sv-SE',{weekday:'long',day:'numeric',month:'long'});
+    const field=(label,val)=>val?`<div style="margin-top:8px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);">${label}</div><div style="font-size:13px;color:var(--tx);white-space:pre-wrap;margin-top:2px;">${esc(val)}</div></div>`:'';
+    const empty=!p.mal&&!p.agenda&&!p.saljare&&!p.anteckningar;
+    return `<div class="sec fade-in" style="margin-bottom:12px;">
+      <div class="sec-hdr" style="align-items:center;">
+        <h3>📋 ${esc(p.tema||'Planeringspass')}</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="font-size:12px;color:var(--mu);text-transform:capitalize;">${dStr}</span>
+          <button class="btn btn-s btn-xs pl-del" data-id="${p.id}" style="color:var(--err);">🗑</button>
+        </div>
+      </div>
+      <div class="sec-body">
+        ${field('Mål med passet',p.mal)}
+        ${field('Agenda / vad som planeras',p.agenda)}
+        ${field('Berörda säljare',p.saljare)}
+        ${field('Anteckningar',p.anteckningar)}
+        ${empty?'<div style="font-size:13px;color:var(--mu);">Inga detaljer ifyllda.</div>':''}
+      </div>
+    </div>`;
+  };
+  main.innerHTML=`
+    <div class="ph"><div><div class="ph-t">Planering <span class="role-pill">Coach</span></div><div class="ph-s">Planera dina coachpass – fyll i vad du tänker göra</div></div></div>
+    <div class="ca">
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>➕ Nytt planeringspass</h3></div>
+        <div class="sec-body">
+          <div style="display:grid;gap:14px;">
+            <div style="display:flex;gap:14px;flex-wrap:wrap;">
+              <div class="fl" style="min-width:170px;"><label>Datum</label><input type="date" id="pl-datum" value="${today}"></div>
+              <div class="fl" style="flex:1;min-width:220px;"><label>Tema / fokus</label><input type="text" id="pl-tema" placeholder="T.ex. Invändningshantering, snittsamtalstid…" style="width:100%;box-sizing:border-box;"></div>
+            </div>
+            <div class="fl"><label>Mål med passet</label><textarea id="pl-mal" rows="2" placeholder="Vad ska passet leda till?" style="width:100%;box-sizing:border-box;"></textarea></div>
+            <div class="fl"><label>Agenda / vad som planeras</label><textarea id="pl-agenda" rows="4" placeholder="Punkt för punkt – vad ska gås igenom under passet?" style="width:100%;box-sizing:border-box;"></textarea></div>
+            <div class="fl"><label>Berörda säljare</label>
+              ${sellers.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;">${sellers.map(s=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500;background:var(--bg2);padding:5px 10px;border-radius:8px;cursor:pointer;"><input type="checkbox" class="pl-seller" value="${esc(s.name)}">${esc(s.name)}</label>`).join('')}</div>`
+                :`<input type="text" id="pl-saljare" placeholder="Vilka säljare berörs?" style="width:100%;box-sizing:border-box;">`}
+            </div>
+            <div class="fl"><label>Anteckningar</label><textarea id="pl-ant" rows="2" placeholder="Övrigt" style="width:100%;box-sizing:border-box;"></textarea></div>
+            <div><button class="btn btn-p" id="pl-save">💾 Spara planeringspass</button><span id="pl-msg" style="font-size:13px;margin-left:10px;"></span></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:18px;">
+        <div class="sec-hdr" style="padding:0 0 8px 2px;"><h3 style="font-size:15px;">📅 Sparade planeringspass (${list.length})</h3></div>
+        ${list.length?list.map(card).join(''):'<div class="sec"><div class="sec-body"><div class="empty"><p>Inga planeringspass ännu</p><small>Skapa ditt första pass i formuläret ovan</small></div></div></div>'}
+      </div>
+    </div>`;
+  main.querySelector('#pl-save').addEventListener('click',()=>savePlanering(main));
+  main.querySelectorAll('.pl-del').forEach(b=>b.addEventListener('click',()=>deletePlanering(main,b.dataset.id)));
+}
+async function savePlanering(main){
+  const g=id=>{const el=document.getElementById(id);return el?String(el.value||'').trim():'';};
+  const msg=document.getElementById('pl-msg');
+  const datum=g('pl-datum');
+  if(!datum){if(msg)msg.innerHTML='<span style="color:var(--err);">Välj ett datum.</span>';return;}
+  let saljare=g('pl-saljare');
+  const checks=[...main.querySelectorAll('.pl-seller:checked')].map(c=>c.value);
+  if(checks.length)saljare=checks.join(', ');
+  const row={coach_id:kalCoachId(),datum:datum,tema:g('pl-tema')||'Planeringspass',
+    mal:g('pl-mal'),agenda:g('pl-agenda'),saljare:saljare,anteckningar:g('pl-ant'),
+    status:'planerad',updated_at:new Date().toISOString()};
+  const btn=document.getElementById('pl-save');if(btn)btn.disabled=true;
+  try{
+    const {error}=await sb.from('salj_planering').insert(row);
+    if(error)throw error;
+    S.planeringLoaded=false;
+    renderPlanering(main);
+  }catch(e){
+    if(btn)btn.disabled=false;
+    if(msg)msg.innerHTML='<span style="color:var(--err);">Kunde inte spara: '+esc(e.message||e)+'</span>';
+  }
+}
+async function deletePlanering(main,id){
+  if(!confirm('Radera detta planeringspass?'))return;
+  try{await sb.from('salj_planering').delete().eq('id',id);}catch(e){}
+  S.planeringLoaded=false;
+  renderPlanering(main);
+}
+
 function renderPlaceholder(main,tab){
-  const titles={dagligt:'Daglig rapport',historik:'Historik',provision:'Provision',
+  const titles={dagligt:'Daglig rapport',provision:'Provision',
     produktutbildning:'Produktutbildning',saljutbildning:'Säljutbildning',ljudfiler:'Ljudfiler',
-    mal:'Mål & Streak',tavlingar:'Tävlingar',team:'Lägg till säljare',teamstats:'Statistik säljare',allstats:'All statistik'};
+    mal:'Mål & Streak',tavlingar:'Tävlingar',team:'Lägg till säljare',teamstats:'Statistik säljare',allstats:'All statistik',planering:'Planering'};
   const title=titles[tab]||'Sida';
   main.innerHTML=`
     <div class="ph"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">Byggs i en kommande etapp</div></div></div>
