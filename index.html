@@ -754,6 +754,14 @@ function fmtDate(s){
   const dag=['sön','mån','tis','ons','tor','fre','lör'];
   return dag[d.getDay()]+' '+d.getDate()+' '+man[d.getMonth()];
 }
+/* "2026-05" eller "2026-05-01" → "Maj 2026" */
+function fmtMonth(s){
+  if(!s)return '';
+  const m=String(s).slice(0,7).split('-');
+  const MAN=['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
+  const idx=parseInt(m[1],10)-1;
+  return (MAN[idx]||m[1])+' '+m[0];
+}
 /* "HH:MM:SS" / "MM:SS" → minuter resp. sekunder */
 function hmsToMin(v){
   if(v==null||v==='')return 0;
@@ -1263,7 +1271,7 @@ function renderHistorik(main){
             <thead><tr><th>Dag</th><th>Samtal</th><th>Nej</th><th>CB</th><th>Sälj</th><th>Tillägg</th><th>Ångr</th><th>Provision</th></tr></thead>
             <tbody>
               ${sorted.map(d=>`<tr>
-                <td class="h-day">${fmtDate(d.date)}</td>
+                <td class="h-day">${d.source==='import'?`${fmtMonth(d.date)} <span style="font-size:9px;font-weight:700;background:var(--bg2);color:var(--mu);padding:2px 6px;border-radius:6px;vertical-align:middle;">HEL MÅNAD</span>`:fmtDate(d.date)}</td>
                 <td class="h-num">${n(d.samtal)}</td>
                 <td class="h-num no">${n(d.nej)}</td>
                 <td class="h-num cb">${n(d.callbacks)}</td>
@@ -1502,7 +1510,7 @@ function renderAllStatsSeller(seller,allRows){
       </div></div></div>`;
   }
   const dayRow=(d,hidden)=>`<tr class="as-day-row${hidden?' as-old-row':''}"${hidden?' style="display:none;"':''}>
-    <td class="h-day">${fmtDate(d.date)}</td>
+    <td class="h-day">${d.source==='import'?`${fmtMonth(d.date)} <span style="font-size:9px;font-weight:700;background:var(--bg2);color:var(--mu);padding:2px 6px;border-radius:6px;vertical-align:middle;">HEL MÅNAD</span>`:fmtDate(d.date)}</td>
     <td class="h-num">${n(d.samtal)}</td>
     <td class="h-num salj">${n(d.sold_s189)+n(d.sold_s229)+n(d.sold_s279)}</td>
     <td class="h-num" style="color:var(--purple);">${n(d.sold_a49)+n(d.sold_a79)+n(d.sold_a99)}</td>
@@ -1721,10 +1729,10 @@ function showImportModal(){
   ov.innerHTML=`
     <div class="modal" style="max-width:480px;">
       <h2>📤 Importera statistik</h2>
-      <p>Ladda upp säljfilen och/eller aktivitetsfilen och välj datum. Säljare matchas på namn. Aktivitetsfilen räknar bara kampanjen <strong>Letuscook</strong> – övriga hoppas över. Säljsiffrorna för datumet sätts utifrån filen.</p>
+      <p>Ladda upp säljfilen och/eller aktivitetsfilen och välj vilken <strong>månad</strong> de gäller. Säljare matchas på namn. Aktivitetsfilen räknar bara kampanjen <strong>Letuscook</strong> – övriga hoppas över. Importen blir månadens statistik och <strong>ersätter</strong> eventuella dagliga rapporter för den månaden (så inget dubbelräknas).</p>
       <div class="fl" style="margin-bottom:1.1rem;">
-        <label>Datum för perioden</label>
-        <input type="date" id="imp-date" value="${new Date().toISOString().split('T')[0]}">
+        <label>Månad som filen gäller</label>
+        <input type="month" id="imp-month" value="${new Date().toISOString().slice(0,7)}">
       </div>
       <div style="${slbl}">1 · Säljfil</div>
       <div class="fdrop" id="imp-drop1" style="margin-bottom:1.1rem;">
@@ -1770,7 +1778,11 @@ function showImportModal(){
     if(typeof XLSX==='undefined'){show('Excel-biblioteket kunde inte laddas. Kontrollera internet och försök igen.',true);return;}
     btn.disabled=true;btn.textContent='Importerar…';
     function fail(m){show(m,true);btn.disabled=false;btn.textContent='Importera';}
-    const date=ov.querySelector('#imp-date').value||new Date().toISOString().split('T')[0];
+    const month=ov.querySelector('#imp-month').value||new Date().toISOString().slice(0,7);
+    const monthStart=month+'-01';
+    const yp=month.split('-').map(Number);
+    const nx=new Date(yp[0],yp[1],1);
+    const nextStart=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-01';
     let sales=null,dialer=null;
     try{
       if(file1){const r=parseSalesFile(await readSheet(file1));if(r.error)return fail('Säljfil: '+r.error);sales=r;}
@@ -1784,14 +1796,16 @@ function showImportModal(){
     }
     const upserts=[],names=[];
     ids.forEach(sid=>{
-      const existing=(S.allStats||[]).find(d=>d.seller_id===sid&&d.date===date)||emptyDay(date);
-      const row=Object.assign({},existing,{seller_id:sid,date:date,source:'import',updated_at:new Date().toISOString()});
+      // utgå från ev. tidigare import för månaden så en redan importerad fil bevaras
+      const prev=(S.allStats||[]).find(d=>d.seller_id===sid&&String(d.date).slice(0,7)===month&&d.source==='import');
+      const row=Object.assign({},prev?prev:emptyDay(monthStart),{seller_id:sid,date:monthStart,source:'import',updated_at:new Date().toISOString()});
+      delete row.id;
       const sv=sb1[sid];
       if(sv)['sold_s189','sold_s229','sold_s279','sold_a49','sold_a79','sold_a99'].forEach(k=>row[k]=sv[k]);
       const av=sb2[sid];
       if(av){
         row.samtal=av.samtal;row.nej=av.nej;row.aktiv_min=av.aktiv_min;
-        row.dialer=Object.assign({},existing.dialer||{},{
+        row.dialer=Object.assign({},(prev&&prev.dialer)||{},{
           campaign:'Letuscook',
           invalid_leads:av.invalid,
           avg_conv_sec:av._avgN>0?Math.round(av._avgSum/av._avgN):0
@@ -1804,9 +1818,14 @@ function showImportModal(){
     let error=null;
     try{const res=await sb.from('seller_daily_stats').upsert(upserts,{onConflict:'seller_id,date'});error=res.error;}catch(e){error=e;}
     if(error)return fail('✗ Kunde inte spara importen: '+(error.message||error));
+    // rensa månadens dagliga rapporter (dag 2 t.o.m. månadsslut) så inget dubbelräknas
+    try{
+      const dr=await sb.from('seller_daily_stats').delete().in('seller_id',[...ids]).gt('date',monthStart).lt('date',nextStart);
+      if(dr.error)show('⚠️ Importen sparades, men dagliga rapporter för månaden kunde inte rensas: '+(dr.error.message||dr.error)+'\nKontrollera så inget dubbelräknas.',true);
+    }catch(e){/* icke-kritiskt */}
     await loadDashboardData();
     const um=[...new Set([...(sales?sales.unmatched:[]),...(dialer?dialer.unmatched:[])])];
-    let msg='✓ Import klar för '+date+'\n'+upserts.length+' säljare uppdaterade: '+names.join(', ');
+    let msg='✓ Import klar för '+fmtMonth(month)+'\n'+upserts.length+' säljare uppdaterade: '+names.join(', ');
     if(dialer&&dialer.skipped)msg+='\n'+dialer.skipped+' rad(er) hoppades över (ej kampanjen Letuscook).';
     if(um.length)msg+='\n'+um.length+' omatchade namn hoppades över: '+um.join(', ');
     show(msg,false);
