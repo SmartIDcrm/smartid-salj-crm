@@ -950,6 +950,11 @@ async function loadDashboardData(){
   }else{
     S.dailyStats=[];
   }
+  /* Månads-dialerstatistik (aktiv tid + snittsamtalstid) */
+  if(S.seller){
+    try{const r=await sb.from('salj_monthly_dialer').select('*').eq('seller_id',S.seller.id);S.monthlyDialer=r.data||[];}
+    catch(e){S.monthlyDialer=[];}
+  }else{S.monthlyDialer=[];}
   /* Scoreboard (RPC – returnerar sälj/tillägg per säljare) */
   try{
     const {data,error}=await sb.rpc('salj_scoreboard');
@@ -968,7 +973,9 @@ async function loadDashboardData(){
       S.allSellers=sres.data||[];
       const ares=await sb.from('seller_daily_stats').select('*').order('date',{ascending:true});
       S.allStats=ares.data||[];
-    }catch(e){S.allSellers=[];S.allStats=[];}
+      const mres=await sb.from('salj_monthly_dialer').select('*');
+      S.allMonthlyDialer=mres.data||[];
+    }catch(e){S.allSellers=[];S.allStats=[];S.allMonthlyDialer=[];}
   }
 }
 
@@ -1029,6 +1036,19 @@ function renderDashboard(main){
   const avgSalj=nDays?(totSalj/nDays).toFixed(1):'0';
   const avgProv=nDays?Math.round(totProv/nDays):0;
   const conv=totSamtal?((totSalj/totSamtal)*100).toFixed(1):'0';
+  const md=(S.monthlyDialer||[]).find(m=>m.month===thisMonth);
+  const monthNej=sum(days,'nej');
+  const monthCbPriv=days.reduce((a,d)=>a+n(d.dialer&&d.dialer.cb_private),0);
+  const aktItem=(l,v)=>`<div class="prov-item"><span class="pl">${l}</span><span class="pv">${v}</span></div>`;
+  const aktivitetHtml=`
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>📞 Min aktivitet</h3><span style="font-size:11px;color:var(--mu);">Denna månad</span></div>
+        <div class="sec-body"><div class="prov-grid">
+          ${aktItem('Snittsamtalstid',md&&md.avg_conv_sec?fmtSec(md.avg_conv_sec):'–')}
+          ${aktItem('Not interested',monthNej)}
+          ${aktItem('Privata callbacks',monthCbPriv)}
+        </div></div>
+      </div>`;
 
   let notice='';
   if(S.loadError){
@@ -1055,6 +1075,7 @@ function renderDashboard(main){
         <div class="kpi fade-in"><div class="kpi-ic purple">📊</div><div class="kpi-l">Konvertering</div><div class="kpi-v">${conv}%</div><div class="kpi-sub">Sälj per samtal</div></div>
       </div>
       ${renderSellerPackages(days)}
+      ${aktivitetHtml}
       ${isCoach?renderCoachTeamOverview():renderScoreboard()}
     </div>
   `;
@@ -1422,15 +1443,16 @@ function renderAllStatsTeam(rows){
   let dialerHtml='';
   if(dRows.length){
     const invalid=dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
-    let avgS=0,avgN=0;
-    dRows.forEach(d=>{const s=n(d.dialer&&d.dialer.avg_conv_sec);if(s>0){avgS+=s;avgN++;}});
+    const unqual=dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer.unqualified),0);
+    const cbPriv=dRows.reduce((a,d)=>a+n(d.dialer&&d.dialer.cb_private),0);
     const di=(l,v,c)=>`<div class="prov-item"><span class="pl">${l}</span><span class="pv"${c?' style="color:'+c+';"':''}>${v}</span></div>`;
     dialerHtml=`<div class="sec fade-in">
-      <div class="sec-hdr"><h3>📞 Dialer-statistik – hela laget</h3></div>
+      <div class="sec-hdr"><h3>📞 Aktivitet – hela laget</h3></div>
       <div class="sec-body"><div class="prov-grid">
-        ${di('Snittsamtalstid',avgN>0?fmtSec(avgS/avgN):'–')}
-        ${di('Ej intresserade leads',nej)}
-        ${di('Ogiltiga leads',invalid)}
+        ${di('Not interested',nej)}
+        ${di('Privata callbacks',cbPriv)}
+        ${di('Ogiltiga leads (Invalid)',invalid)}
+        ${di('Unqualified',unqual)}
       </div></div></div>`;
   }
   const kpi=(ic,cls,label,val,sub)=>`<div class="kpi fade-in"><div class="kpi-ic ${cls}">${ic}</div><div class="kpi-l">${label}</div><div class="kpi-v">${val}</div><div class="kpi-sub">${sub}</div></div>`;
@@ -1493,29 +1515,30 @@ function renderAllStatsSeller(seller,allRows){
   const conv=samtal>0?(salj/samtal*100).toFixed(1):'0';
   const kpi=(ic,cls,label,val,sub)=>`<div class="kpi"><div class="kpi-ic ${cls}">${ic}</div><div class="kpi-l">${label}</div><div class="kpi-v">${val}</div><div class="kpi-sub">${sub}</div></div>`;
   const box=(label,val,bg,col)=>`<div style="text-align:center;padding:1rem;background:${bg};border-radius:10px;"><div style="font-size:11px;color:${col};font-weight:700;text-transform:uppercase;letter-spacing:.06em;">${label}</div><div style="font-size:26px;font-weight:700;color:${col};margin-top:4px;">${val}</div></div>`;
-  const dDays=days.filter(d=>d.dialer);
-  let dialerHtml='';
-  if(dDays.length){
-    const invalid=dDays.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
-    let avgS=0,avgN=0;
-    dDays.forEach(d=>{const s=n(d.dialer&&d.dialer.avg_conv_sec);if(s>0){avgS+=s;avgN++;}});
-    const dnej=days.reduce((a,d)=>a+n(d.nej),0);
-    const di=(l,v,c)=>`<div class="prov-item"><span class="pl">${l}</span><span class="pv"${c?' style="color:'+c+';"':''}>${v}</span></div>`;
-    dialerHtml=`<div class="sec fade-in">
-      <div class="sec-hdr"><h3>📞 ${esc(seller.name)} – dialer-statistik</h3></div>
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const md=(S.allMonthlyDialer||[]).find(m=>m.seller_id===seller.id&&m.month===thisMonth);
+  const invalid=days.reduce((a,d)=>a+n(d.dialer&&d.dialer.invalid_leads),0);
+  const unqual=days.reduce((a,d)=>a+n(d.dialer&&d.dialer.unqualified),0);
+  const cbPriv=days.reduce((a,d)=>a+n(d.dialer&&d.dialer.cb_private),0);
+  const dnej=days.reduce((a,d)=>a+n(d.nej),0);
+  const di=(l,v,c)=>`<div class="prov-item"><span class="pl">${l}</span><span class="pv"${c?' style="color:'+c+';"':''}>${v}</span></div>`;
+  const dialerHtml=`<div class="sec fade-in">
+      <div class="sec-hdr"><h3>📞 ${esc(seller.name)} – aktivitet</h3><span style="font-size:11px;color:var(--mu);">Aktiv tid &amp; snittsamtalstid avser innevarande månad</span></div>
       <div class="sec-body"><div class="prov-grid">
-        ${di('Snittsamtalstid',avgN>0?fmtSec(avgS/avgN):'–')}
-        ${di('Ej intresserade leads',dnej)}
-        ${di('Ogiltiga leads',invalid)}
+        ${di('Success (sälj)',salj,'var(--g)')}
+        ${di('Not interested',dnej)}
+        ${di('Privata callbacks',cbPriv)}
+        ${di('Ogiltiga leads (Invalid)',invalid)}
+        ${di('Unqualified',unqual)}
+        ${di('Snittsamtalstid',md&&md.avg_conv_sec?fmtSec(md.avg_conv_sec):'–')}
+        ${di('Aktiv tid i dialern',md?fmtMin(md.active_min):'–')}
       </div></div></div>`;
-  }
   const dayRow=(d,hidden)=>`<tr class="as-day-row${hidden?' as-old-row':''}"${hidden?' style="display:none;"':''}>
     <td class="h-day">${d.source==='import'?`${fmtMonth(d.date)} <span style="font-size:9px;font-weight:700;background:var(--bg2);color:var(--mu);padding:2px 6px;border-radius:6px;vertical-align:middle;">HEL MÅNAD</span>`:fmtDate(d.date)}</td>
     <td class="h-num">${n(d.samtal)}</td>
     <td class="h-num salj">${n(d.sold_s189)+n(d.sold_s229)+n(d.sold_s279)}</td>
     <td class="h-num" style="color:var(--purple);">${n(d.sold_a49)+n(d.sold_a79)+n(d.sold_a99)}</td>
     <td class="h-num">${n(d.callbacks)}</td>
-    <td class="h-num">${fmtMin(n(d.aktiv_min))}</td>
   </tr>`;
   const WEEK=7;
   let bodyRows,toggleHtml='',hdrNote='';
@@ -1536,7 +1559,6 @@ function renderAllStatsSeller(seller,allRows){
           ${kpi('✓','green','Sälj (paket)',salj,'Snitt '+(salj/days.length).toFixed(1)+'/dag')}
           ${kpi('➕','purple','Tilläggstjänster',addon,'Antal sålda')}
           ${kpi('📊','purple','Konvertering',conv+'%','Sälj per samtal')}
-          ${kpi('⏱','orange','Aktiv tid',fmtMin(aktiv),days.length+' dagar')}
         </div>
       </div>
     </div>
@@ -1556,7 +1578,7 @@ function renderAllStatsSeller(seller,allRows){
       <div class="sec-hdr"><h3>📅 ${esc(seller.name)} – dag för dag</h3>${hdrNote}</div>
       <div class="sec-body" style="padding:0;">
         <div class="htable-wrap"><table class="htable">
-          <thead><tr><th>Dag</th><th>Samtal</th><th>Sälj</th><th>Tillägg</th><th>CB</th><th>Aktiv</th></tr></thead>
+          <thead><tr><th>Dag</th><th>Samtal</th><th>Sälj</th><th>Tillägg</th><th>CB</th></tr></thead>
           <tbody>${bodyRows}</tbody>
         </table></div>
         ${toggleHtml}
@@ -1668,26 +1690,50 @@ function colFinder(rows){
   return (...kw)=>{for(const k of kw){const i=lower.findIndex(h=>h.includes(k));if(i>=0)return headers[i];}return null;};
 }
 
-/* Fil 1: säljlista — en rad per affär. Status-kolumnen ignoreras helt. */
-function parseSalesFile(rows){
-  if(!rows.length)return {error:'Säljfilen innehåller inga rader.'};
+/* Leadfil: en rad per kontaktad lead, med datum. Bucketas per säljare + dag. */
+function parseLeadLog(rows){
+  if(!rows.length)return {error:'Leadfilen innehåller inga rader.'};
   const find=colFinder(rows);
   const cSeller=find('last contacted by','contacted by','säljare','saljare','user');
+  const cDate=find('last contacted','date','datum');
+  const cStatus=find('status');
   const cPkg=find('välj paket','valj paket','paket','package');
   const cAddon=find('tilläggstjänst','tillaggstjanst','tillägg','tillagg','addon');
-  if(!cSeller||!cPkg)return {error:'behöver en säljarkolumn (t.ex. "Last contacted by") och en paketkolumn ("Välj paket").'};
+  const cCamp=find('campaign','kampanj');
+  if(!cSeller||!cDate)return {error:'behöver en säljarkolumn ("Last contacted by") och en datumkolumn ("Last contacted").'};
   const pkg=v=>{v=String(v||'').toLowerCase();return v.includes('singel')?'s189':v.includes('par')?'s229':v.includes('familj')?'s279':null;};
   const add=v=>{v=String(v||'').toLowerCase();return v.includes('singel')?'a49':v.includes('par')?'a79':v.includes('familj')?'a99':null;};
-  const bySeller={},unmatched=new Set();
+  const byKey={},unmatched=new Set();let skipped=0;
   rows.forEach(r=>{
-    const nm=String(r[cSeller]||'').trim();if(!nm)return;
+    if(cCamp){const camp=String(r[cCamp]||'').toLowerCase().trim();if(camp&&camp!=='letuscook'){skipped++;return;}}
+    const nm=String(r[cSeller]||'').trim();
+    if(!nm)return;                                 // tom säljare = automatisk återuppringning
     const seller=importMatchSeller(nm);
     if(!seller){unmatched.add(nm);return;}
-    if(!bySeller[seller.id])bySeller[seller.id]={_name:seller.name,sold_s189:0,sold_s229:0,sold_s279:0,sold_a49:0,sold_a79:0,sold_a99:0};
-    const pk=pkg(r[cPkg]);if(pk)bySeller[seller.id]['sold_'+pk]++;
-    if(cAddon){const ak=add(r[cAddon]);if(ak)bySeller[seller.id]['sold_'+ak]++;}
+    const date=String(r[cDate]||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return;
+    const key=seller.id+'|'+date;
+    let a=byKey[key];
+    if(!a)a=byKey[key]={seller_id:seller.id,_name:seller.name,date:date,
+      samtal:0,nej:0,callbacks:0,
+      sold_s189:0,sold_s229:0,sold_s279:0,sold_a49:0,sold_a79:0,sold_a99:0,
+      invalid:0,unqualified:0,cb_private:0,cb_shared:0,cb_vip:0};
+    a.samtal++;
+    const st=String(r[cStatus]||'').toLowerCase().trim();
+    if(st==='success'){
+      const pk=pkg(r[cPkg]);if(pk)a['sold_'+pk]++;
+      if(cAddon){const ak=add(r[cAddon]);if(ak)a['sold_'+ak]++;}
+    }else if(st==='not interested'){a.nej++;}
+    else if(st==='invalid'){a.invalid++;}
+    else if(st==='unqualified'){a.unqualified++;}
+    if(st.indexOf('callback')>=0){
+      a.callbacks++;
+      if(st.indexOf('private')>=0)a.cb_private++;
+      else if(st.indexOf('shared')>=0)a.cb_shared++;
+      else if(st.indexOf('vip')>=0)a.cb_vip++;
+    }
   });
-  return {bySeller,unmatched:[...unmatched]};
+  return {byKey,unmatched:[...unmatched],skipped};
 }
 
 /* Fil 2: dialer-aktivitet — endast kampanjen Letuscook räknas. */
@@ -1729,19 +1775,19 @@ function showImportModal(){
   ov.innerHTML=`
     <div class="modal" style="max-width:480px;">
       <h2>📤 Importera statistik</h2>
-      <p>Ladda upp säljfilen och/eller aktivitetsfilen och välj vilken <strong>månad</strong> de gäller. Säljare matchas på namn. Aktivitetsfilen räknar bara kampanjen <strong>Letuscook</strong> – övriga hoppas över. Importen blir månadens statistik och <strong>ersätter</strong> eventuella dagliga rapporter för den månaden (så inget dubbelräknas).</p>
+      <p>Välj vilken <strong>månad</strong> filerna gäller, ladda upp dem och importera. Säljare matchas på namn. Endast kampanjen <strong>Letuscook</strong> räknas.</p>
       <div class="fl" style="margin-bottom:1.1rem;">
-        <label>Månad som filen gäller</label>
+        <label>Månad som filerna gäller</label>
         <input type="month" id="imp-month" value="${new Date().toISOString().slice(0,7)}">
       </div>
-      <div style="${slbl}">1 · Säljfil</div>
+      <div style="${slbl}">1 · Leadfil — en rad per kontaktad lead (med datum)</div>
       <div class="fdrop" id="imp-drop1" style="margin-bottom:1.1rem;">
-        <p id="imp-text1" style="font-size:13px;color:var(--mu);margin:0;">Klicka för att välja säljfil (.xlsx/.csv)</p>
+        <p id="imp-text1" style="font-size:13px;color:var(--mu);margin:0;">Klicka för att välja leadfil (.xlsx/.csv)</p>
         <input type="file" id="imp-file1" accept=".xlsx,.xls,.csv" style="display:none;">
       </div>
-      <div style="${slbl}">2 · Aktivitetsfil (dialer)</div>
+      <div style="${slbl}">2 · Dialerfil — aktiv tid &amp; snittsamtalstid (valfri)</div>
       <div class="fdrop" id="imp-drop2" style="margin-bottom:1.1rem;">
-        <p id="imp-text2" style="font-size:13px;color:var(--mu);margin:0;">Klicka för att välja aktivitetsfil (.xlsx/.csv)</p>
+        <p id="imp-text2" style="font-size:13px;color:var(--mu);margin:0;">Klicka för att välja dialerfil (.xlsx/.csv)</p>
         <input type="file" id="imp-file2" accept=".xlsx,.xls,.csv" style="display:none;">
       </div>
       <div id="imp-result" style="display:none;border-radius:8px;padding:11px 13px;font-size:13px;white-space:pre-line;margin-bottom:1rem;"></div>
@@ -1783,50 +1829,76 @@ function showImportModal(){
     const yp=month.split('-').map(Number);
     const nx=new Date(yp[0],yp[1],1);
     const nextStart=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-01';
-    let sales=null,dialer=null;
+    let lead=null,dialer=null;
     try{
-      if(file1){const r=parseSalesFile(await readSheet(file1));if(r.error)return fail('Säljfil: '+r.error);sales=r;}
-      if(file2){const r=parseDialerFile(await readSheet(file2));if(r.error)return fail('Aktivitetsfil: '+r.error);dialer=r;}
+      if(file1){const r=parseLeadLog(await readSheet(file1));if(r.error)return fail('Leadfil: '+r.error);lead=r;}
+      if(file2){const r=parseDialerFile(await readSheet(file2));if(r.error)return fail('Dialerfil: '+r.error);dialer=r;}
     }catch(e){return fail('✗ '+(e.message||e));}
-    const sb1=sales?sales.bySeller:{},sb2=dialer?dialer.bySeller:{};
-    const ids=new Set([...Object.keys(sb1),...Object.keys(sb2)]);
-    if(!ids.size){
-      const um=[...new Set([...(sales?sales.unmatched:[]),...(dialer?dialer.unmatched:[])])];
+
+    // --- Leadfilen → en dagsrad per säljare och dag i vald månad ---
+    const dayRows=[],leadSellers=new Set();let otherMonth=0;
+    if(lead){
+      Object.keys(lead.byKey).forEach(k=>{
+        const a=lead.byKey[k];
+        if(a.date.slice(0,7)!==month){otherMonth++;return;}
+        leadSellers.add(a.seller_id);
+        dayRows.push({
+          seller_id:a.seller_id,date:a.date,source:'import',
+          samtal:a.samtal,nej:a.nej,callbacks:a.callbacks,aktiv_min:0,
+          sold_s189:a.sold_s189,sold_s229:a.sold_s229,sold_s279:a.sold_s279,
+          sold_a49:a.sold_a49,sold_a79:a.sold_a79,sold_a99:a.sold_a99,
+          ang_s189:0,ang_s229:0,ang_s279:0,ang_a49:0,ang_a79:0,ang_a99:0,
+          dialer:{invalid_leads:a.invalid,unqualified:a.unqualified,
+                  cb_private:a.cb_private,cb_shared:a.cb_shared,cb_vip:a.cb_vip},
+          updated_at:new Date().toISOString()
+        });
+      });
+    }
+    // --- Dialerfilen → en månadsrad per säljare (aktiv tid + snittsamtalstid) ---
+    const monthRows=[],dialerSellers=new Set();
+    if(dialer){
+      Object.keys(dialer.bySeller).forEach(sid=>{
+        const av=dialer.bySeller[sid];
+        dialerSellers.add(sid);
+        monthRows.push({seller_id:sid,month:month,
+          active_min:av.aktiv_min,
+          avg_conv_sec:av._avgN>0?Math.round(av._avgSum/av._avgN):0,
+          updated_at:new Date().toISOString()});
+      });
+    }
+    const names=[...new Set([...[...leadSellers],...[...dialerSellers]].map(sid=>{
+      const a=lead&&Object.values(lead.byKey).find(x=>x.seller_id===sid);
+      const v=dialer&&dialer.bySeller[sid];
+      return (a&&a._name)||(v&&v._name)||sid;
+    }))];
+    if(!leadSellers.size&&!dialerSellers.size){
+      const um=[...new Set([...(lead?lead.unmatched:[]),...(dialer?dialer.unmatched:[])])];
       return fail('Inga rader matchade en säljare i systemet.'+(um.length?'\nOmatchade namn: '+um.join(', '):''));
     }
-    const upserts=[],names=[];
-    ids.forEach(sid=>{
-      // utgå från ev. tidigare import för månaden så en redan importerad fil bevaras
-      const prev=(S.allStats||[]).find(d=>d.seller_id===sid&&String(d.date).slice(0,7)===month&&d.source==='import');
-      const row=Object.assign({},prev?prev:emptyDay(monthStart),{seller_id:sid,date:monthStart,source:'import',updated_at:new Date().toISOString()});
-      delete row.id;
-      const sv=sb1[sid];
-      if(sv)['sold_s189','sold_s229','sold_s279','sold_a49','sold_a79','sold_a99'].forEach(k=>row[k]=sv[k]);
-      const av=sb2[sid];
-      if(av){
-        row.samtal=av.samtal;row.nej=av.nej;row.aktiv_min=av.aktiv_min;
-        row.dialer=Object.assign({},(prev&&prev.dialer)||{},{
-          campaign:'Letuscook',
-          invalid_leads:av.invalid,
-          avg_conv_sec:av._avgN>0?Math.round(av._avgSum/av._avgN):0
-        });
-      }
-      upserts.push(row);
-      names.push((sv&&sv._name)||(av&&av._name)||sid);
-    });
-    show('Importerar '+upserts.length+' säljare…',false);
-    let error=null;
-    try{const res=await sb.from('seller_daily_stats').upsert(upserts,{onConflict:'seller_id,date'});error=res.error;}catch(e){error=e;}
-    if(error)return fail('✗ Kunde inte spara importen: '+(error.message||error));
-    // rensa månadens dagliga rapporter (dag 2 t.o.m. månadsslut) så inget dubbelräknas
-    try{
-      const dr=await sb.from('seller_daily_stats').delete().in('seller_id',[...ids]).gt('date',monthStart).lt('date',nextStart);
-      if(dr.error)show('⚠️ Importen sparades, men dagliga rapporter för månaden kunde inte rensas: '+(dr.error.message||dr.error)+'\nKontrollera så inget dubbelräknas.',true);
-    }catch(e){/* icke-kritiskt */}
+    show('Importerar…',false);
+    // 1. Leadfil: ersätt månadens dagsrader för berörda säljare
+    if(lead&&dayRows.length){
+      let delErr=null;
+      try{const dr=await sb.from('seller_daily_stats').delete().in('seller_id',[...leadSellers]).gte('date',monthStart).lt('date',nextStart);delErr=dr.error;}catch(e){delErr=e;}
+      if(delErr)return fail('✗ Kunde inte rensa månaden: '+(delErr.message||delErr));
+      let insErr=null;
+      try{const ir=await sb.from('seller_daily_stats').upsert(dayRows,{onConflict:'seller_id,date'});insErr=ir.error;}catch(e){insErr=e;}
+      if(insErr)return fail('✗ Kunde inte spara leadstatistiken: '+(insErr.message||insErr)+'\nKör om importen.');
+    }
+    // 2. Dialerfil: månadssiffror
+    if(dialer&&monthRows.length){
+      let dErr=null;
+      try{const dres=await sb.from('salj_monthly_dialer').upsert(monthRows,{onConflict:'seller_id,month'});dErr=dres.error;}catch(e){dErr=e;}
+      if(dErr)show('⚠️ Leadstatistiken sparades, men dialer-månadssiffrorna kunde inte sparas: '+(dErr.message||dErr),true);
+    }
     await loadDashboardData();
-    const um=[...new Set([...(sales?sales.unmatched:[]),...(dialer?dialer.unmatched:[])])];
-    let msg='✓ Import klar för '+fmtMonth(month)+'\n'+upserts.length+' säljare uppdaterade: '+names.join(', ');
-    if(dialer&&dialer.skipped)msg+='\n'+dialer.skipped+' rad(er) hoppades över (ej kampanjen Letuscook).';
+    const um=[...new Set([...(lead?lead.unmatched:[]),...(dialer?dialer.unmatched:[])])];
+    let msg='✓ Import klar för '+fmtMonth(month);
+    if(lead)msg+='\n'+dayRows.length+' dagsrader från leadfilen ('+leadSellers.size+' säljare).';
+    if(dialer)msg+='\n'+monthRows.length+' säljare fick dialer-månadssiffror.';
+    msg+='\nSäljare: '+names.join(', ');
+    if(otherMonth)msg+='\n'+otherMonth+' rad(er) gällde annan månad och hoppades över.';
+    if(lead&&lead.skipped)msg+='\n'+lead.skipped+' rad(er) hoppades över (ej kampanjen Letuscook).';
     if(um.length)msg+='\n'+um.length+' omatchade namn hoppades över: '+um.join(', ');
     show(msg,false);
     btn.textContent='Klar';
