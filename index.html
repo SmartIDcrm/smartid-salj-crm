@@ -422,6 +422,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 @keyframes sgiftbob{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
 @keyframes sgiftpop{0%,100%{transform:scale(1) rotate(-5deg);}50%{transform:scale(1.16) rotate(5deg);}}
 @keyframes shimmer{to{background-position:-200% center;}}
+/* === KALENDER === */
+.kal-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px;}
+.kal-wknav{display:flex;align-items:center;gap:7px;}
+.kal-wklabel{font-size:13px;font-weight:700;color:var(--tx);min-width:160px;text-align:center;}
+.kal-grid{width:100%;border-collapse:separate;border-spacing:5px;min-width:680px;}
+.kal-grid th{font-size:12px;font-weight:700;color:var(--tx);padding:6px 4px 9px;text-align:center;}
+.kal-dn{display:block;}
+.kal-dd{display:block;font-size:11px;font-weight:500;color:var(--mu);margin-top:1px;}
+.kal-time{font-size:10.5px;font-weight:600;color:var(--mu);white-space:nowrap;text-align:right;padding-right:8px;width:78px;}
+.kcell{background:var(--bg2);border-radius:9px;height:60px;cursor:pointer;padding:7px 8px;border:1.5px solid transparent;vertical-align:top;transition:.13s;}
+.kcell:hover{border-color:var(--g);}
+.kcell-empty{color:var(--mu);font-size:17px;text-align:center;font-weight:600;opacity:.35;}
+.kcell-type{font-size:12px;font-weight:700;line-height:1.25;}
+.kcell-seller{font-size:10.5px;color:var(--mu);margin-top:3px;}
+.kcell.t-feedback{background:#E8F0FE;border-color:#BBD3F7;}
+.kcell.t-feedback .kcell-type{color:#2563EB;}
+.kcell.t-saljpass{background:#EAF4EE;border-color:#A8D8B9;}
+.kcell.t-saljpass .kcell-type{color:var(--gd);}
+.kcell.t-livelyssning{background:#F1ECFB;border-color:#D3C2EF;}
+.kcell.t-livelyssning .kcell-type{color:#7C3AED;}
+.kcell.t-planering{background:#FCF1E2;border-color:#EFD3A4;}
+.kcell.t-planering .kcell-type{color:#C2781A;}
+.kal-break{background:repeating-linear-gradient(45deg,var(--bg2),var(--bg2) 8px,#fff 8px,#fff 16px);border-radius:8px;text-align:center;font-size:11px;font-weight:600;color:var(--mu);}
+.kal-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:13px;padding-top:12px;border-top:1px solid var(--br);}
+.kal-leg-item{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--mu);font-weight:600;}
+.ktype-dot{width:13px;height:13px;border-radius:4px;flex-shrink:0;display:inline-block;}
+.kd-feedback{background:#2563EB;}
+.kd-saljpass{background:var(--g);}
+.kd-livelyssning{background:#7C3AED;}
+.kd-planering{background:#E0922F;}
+.ktype-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--br);border-radius:9px;cursor:pointer;margin-bottom:7px;font-size:13px;font-weight:600;color:var(--tx);transition:.13s;}
+.ktype-opt:hover{border-color:var(--g);}
+.ktype-opt.sel{border-color:var(--g);background:#EAF4EE;}
 </style>
 </head>
 <body>
@@ -513,6 +546,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="sbi coach-only" data-tab="team"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.5"/><circle cx="11" cy="6" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M7 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg><span>Säljare</span></button>
       <button class="sbi coach-only" data-tab="teamstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 14h12"/><rect x="3" y="8" width="2" height="6"/><rect x="7" y="5" width="2" height="9"/><rect x="11" y="2" width="2" height="12"/></svg><span>Statistik säljare</span></button>
       <button class="sbi coach-only" data-tab="allstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5"/></svg><span>All statistik</span></button>
+      <button class="sbi coach-only" data-tab="kalender"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="12" height="11" rx="1"/><line x1="2" y1="6.5" x2="14" y2="6.5"/><line x1="5.5" y1="1.5" x2="5.5" y2="4"/><line x1="10.5" y1="1.5" x2="10.5" y2="4"/><circle cx="6" cy="10" r="1" fill="currentColor"/><circle cx="10" cy="10" r="1" fill="currentColor"/></svg><span>Kalender</span></button>
     </nav>
     <div class="sb-ftr">
       <button class="logout-btn" id="changepw-btn">
@@ -690,6 +724,7 @@ const S={user:null,profile:null,seller:null,role:'saljare',
   coachSessions:[],feedbackQuestions:[],coachSellers:[],coachLoaded:false,coachOpenSession:null,
   recovery:false,
   tsSellerId:null,tsDate:null,celebrated:false,
+  kalWeek:null,kalRows:[],kalLoadedWeek:null,
   tab:'dashboard',reportDate:null,loadError:null};
 
 /* ---- Hjälpfunktioner ---- */
@@ -966,6 +1001,7 @@ function render(){
   else if(S.tab==='coachning')renderCoachning(main);
   else if(S.tab==='teamstats')renderTeamStats(main);
   else if(S.tab==='mal')renderMal(main);
+  else if(S.tab==='kalender')renderKalender(main);
   else renderPlaceholder(main,S.tab);
 }
 
@@ -1534,7 +1570,7 @@ function renderAllStats(main){
   main.innerHTML=`
     <div class="ph">
       <div><div class="ph-t">All statistik <span class="role-pill">Coach</span></div><div class="ph-s">${viewingSeller?'Individuell statistik – '+esc(viewingSeller.name):'Sammanställning av hela lagets statistik'}</div></div>
-      <div class="ph-a"><button class="btn btn-s" id="imp-btn">📤 Importera dialer-export</button></div>
+      <div class="ph-a"><button class="btn btn-s" id="imp-btn">📤 Importera statistik</button></div>
     </div>
     <div class="ca">
       <div class="sec fade-in">
@@ -1550,10 +1586,10 @@ function renderAllStats(main){
             <div class="fl" style="min-width:150px;"><label>Från</label><input type="date" id="as-from" value="${S.allstats_from}"></div>
             <div class="fl" style="min-width:150px;"><label>Till</label><input type="date" id="as-to" value="${S.allstats_to}"></div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button class="btn btn-s btn-xs" data-range="7">7 dagar</button>
-              <button class="btn btn-s btn-xs" data-range="30">30 dagar</button>
-              <button class="btn btn-s btn-xs" data-range="90">90 dagar</button>
-              <button class="btn btn-s btn-xs" data-range="all">Allt</button>
+              <button class="btn btn-s btn-xs" data-range="igar">Igår</button>
+              <button class="btn btn-s btn-xs" data-range="vecka">Senaste veckan</button>
+              <button class="btn btn-s btn-xs" data-range="manad">Denna månad</button>
+              <button class="btn btn-s btn-xs" data-range="forramanad">Förra månaden</button>
             </div>
           </div>
         </div>
@@ -1568,13 +1604,14 @@ function renderAllStats(main){
   document.getElementById('as-to').addEventListener('change',e=>{if(e.target.value){S.allstats_to=e.target.value;renderAllStats(main);}});
   main.querySelectorAll('[data-range]').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const r=btn.dataset.range,today=new Date();let from=new Date(today);
-      if(r==='7')from.setDate(today.getDate()-7);
-      else if(r==='30')from.setDate(today.getDate()-30);
-      else if(r==='90')from.setDate(today.getDate()-90);
-      else if(r==='all')from=new Date(2020,0,1);
-      S.allstats_from=from.toISOString().split('T')[0];
-      S.allstats_to=today.toISOString().split('T')[0];
+      const r=btn.dataset.range,today=new Date();
+      let from=new Date(today),to=new Date(today);
+      if(r==='igar'){from.setDate(today.getDate()-1);to.setDate(today.getDate()-1);}
+      else if(r==='vecka'){from.setDate(today.getDate()-7);}
+      else if(r==='manad'){from=new Date(today.getFullYear(),today.getMonth(),1);}
+      else if(r==='forramanad'){from=new Date(today.getFullYear(),today.getMonth()-1,1);to=new Date(today.getFullYear(),today.getMonth(),0);}
+      S.allstats_from=isoLocal(from);
+      S.allstats_to=isoLocal(to);
       renderAllStats(main);
     });
   });
@@ -3040,9 +3077,9 @@ function renderMal(main){
   totalSalj=Math.max(0,totalSalj);
 
   const meters=[
-    {label:'Månadsbonus',sub:'Nollställs vid varje månadsskifte',value:monthSalj,goal:40,reward:'100 €',ic:'📅'},
-    {label:'Bonusmål',sub:'Räknas från start – nollställs aldrig',value:totalSalj,goal:100,reward:'200 €',ic:'🎯'},
-    {label:'Storbonus',sub:'Räknas från start – nollställs aldrig',value:totalSalj,goal:200,reward:'300 €',ic:'🏆'}
+    {label:'Månadsbonus',sub:'Nollställs vid varje månadsskifte',value:monthSalj,goal:40,ic:'📅'},
+    {label:'Bonusmål',sub:'Räknas från start – nollställs aldrig',value:totalSalj,goal:100,ic:'🎯'},
+    {label:'Storbonus',sub:'Räknas från start – nollställs aldrig',value:totalSalj,goal:200,ic:'🏆'}
   ];
 
   function meterCard(m){
@@ -3056,14 +3093,14 @@ function renderMal(main){
           <div class="bmeter-label">${m.label}</div>
           <div class="bmeter-sub">${m.sub}</div>
         </div>
-        <div class="bmeter-reward${done?' br-on':''}">${done?'✓ ':''}${m.reward}</div>
+        <div class="bmeter-reward${done?' br-on':''}">${done?'🎉 Upplåst!':'🎁 Hemlig bonus'}</div>
       </div>
       <div class="bmeter-track"><div class="bmeter-fill${done?' bf-done':''}" style="width:${pct}%;"></div></div>
       <div class="bmeter-foot">
         <span class="bmeter-count">${m.value} / ${m.goal} sälj</span>
         <span class="bmeter-status">${done?'🎉 Bonus upplåst!':left+' sälj kvar'}</span>
       </div>
-      ${done?`<div class="bmeter-msg">Grattis! Du har nått ${m.goal} sälj och fått en bonus på <strong>${m.reward}</strong>!</div>`:''}
+      ${done?`<div class="bmeter-msg">🎉 Grattis! Du har nått ${m.goal} sälj – en överraskning väntar på dig!</div>`:''}
     </div>`;
   }
 
@@ -3087,6 +3124,237 @@ function renderMal(main){
 
   if(anyDone&&!S.celebrated){S.celebrated=true;if(typeof fireConfetti==='function')fireConfetti();}
   if(!anyDone)S.celebrated=false;
+}
+
+/* ============================================================
+   KALENDER & PLANERING — coach-veckoschema
+   ============================================================ */
+const KAL_SLOTS=['11:00–12:30','12:40–14:00','15:00–16:30','16:40–18:00'];
+const KAL_BREAKS={0:'12:30–12:40 · Paus',1:'14:00–15:00 · Lunch',2:'16:30–16:40 · Paus'};
+const KAL_DAYS=['Måndag','Tisdag','Onsdag','Torsdag','Fredag'];
+const KAL_TYPES={feedback:'Feedback',saljpass:'Säljpass',livelyssning:'Livelyssning',planering:'Planering'};
+const SV_MONTHS=['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'];
+
+function isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function kalMonday(d){const x=new Date(d);const dow=(x.getDay()+6)%7;x.setDate(x.getDate()-dow);x.setHours(0,0,0,0);return x;}
+function kalDefaultWeek(){
+  const now=new Date();const dow=(now.getDay()+6)%7;const base=new Date(now);
+  if(dow===5||dow===6||(dow===4&&now.getHours()>=13))base.setDate(base.getDate()+7);
+  return isoLocal(kalMonday(base));
+}
+function kalDayDate(weekStr,dayIdx){const d=new Date(weekStr+'T00:00:00');d.setDate(d.getDate()+dayIdx);return d;}
+function kalWeekLabel(weekStr){
+  const mon=kalDayDate(weekStr,0),fri=kalDayDate(weekStr,4);
+  const sameM=mon.getMonth()===fri.getMonth();
+  return mon.getDate()+(sameM?'':' '+SV_MONTHS[mon.getMonth()])+'–'+fri.getDate()+' '+SV_MONTHS[fri.getMonth()]+' '+fri.getFullYear();
+}
+
+function renderKalender(main){
+  if(S.role!=='coach'){renderPlaceholder(main,'kalender');return;}
+  if(!S.kalWeek)S.kalWeek=kalDefaultWeek();
+  if(S.kalLoadedWeek===S.kalWeek){renderKalenderView(main);return;}
+  main.innerHTML='<div class="ph"><div><div class="ph-t">Kalender & planering</div><div class="ph-s">Laddar…</div></div></div><div class="ca"><div class="empty"><p>Laddar veckan…</p></div></div>';
+  loadKalender(main);
+}
+
+async function loadKalender(main){
+  let rows=[];
+  try{const r=await sb.from('salj_schedule').select('*').eq('week',S.kalWeek);rows=r.data||[];}catch(e){}
+  S.kalRows=rows;S.kalLoadedWeek=S.kalWeek;
+  if(S.tab==='kalender')renderKalenderView(main);
+}
+
+function renderKalenderView(main){
+  const rows=S.kalRows||[];
+  const cellOf=(d,s)=>rows.find(r=>r.day_idx===d&&r.slot_idx===s)||null;
+  const noteRow=rows.find(r=>r.day_idx===-1)||null;
+  const sellerName=id=>{const x=(S.allSellers||[]).find(s=>s.id===id);return x?x.name:'';};
+
+  let head='<tr><th></th>';
+  KAL_DAYS.forEach((dn,i)=>{
+    const dt=kalDayDate(S.kalWeek,i);
+    head+=`<th><span class="kal-dn">${dn}</span><span class="kal-dd">${dt.getDate()}/${dt.getMonth()+1}</span></th>`;
+  });
+  head+='</tr>';
+
+  let bodyRows='';
+  KAL_SLOTS.forEach((slabel,s)=>{
+    let tr=`<tr><td class="kal-time">${slabel}</td>`;
+    for(let d=0;d<5;d++){
+      const c=cellOf(d,s);
+      if(c&&c.type){
+        const sn=c.seller_id?sellerName(c.seller_id):'';
+        tr+=`<td class="kcell t-${c.type}" data-d="${d}" data-s="${s}"><div class="kcell-type">${KAL_TYPES[c.type]||esc(c.type)}</div>${sn?`<div class="kcell-seller">👤 ${esc(sn)}</div>`:''}</td>`;
+      }else{
+        tr+=`<td class="kcell kcell-empty" data-d="${d}" data-s="${s}">+</td>`;
+      }
+    }
+    tr+='</tr>';
+    bodyRows+=tr;
+    if(KAL_BREAKS[s]!==undefined)bodyRows+=`<tr><td class="kal-time"></td><td class="kal-break" colspan="5">${KAL_BREAKS[s]}</td></tr>`;
+  });
+
+  main.innerHTML=`
+    <div class="ph">
+      <div><div class="ph-t">Kalender & planering <span class="role-pill">Coach</span></div><div class="ph-s">Boka pass för veckan – klicka i rutorna</div></div>
+    </div>
+    <div class="ca">
+      <div class="kal-toolbar">
+        <div class="kal-wknav">
+          <button class="btn btn-s" id="kal-prev">←</button>
+          <span class="kal-wklabel">${kalWeekLabel(S.kalWeek)}</span>
+          <button class="btn btn-s" id="kal-next">→</button>
+        </div>
+        <button class="btn btn-s" id="kal-today">Nuvarande vecka</button>
+        <div style="flex:1;"></div>
+        <button class="btn btn-s" id="kal-copy">📋 Kopiera förra veckan</button>
+        <button class="btn btn-p" id="kal-report">📧 Skicka veckorapport</button>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-body" style="overflow-x:auto;">
+          <table class="kal-grid"><thead>${head}</thead><tbody>${bodyRows}</tbody></table>
+          <div class="kal-legend">
+            ${Object.keys(KAL_TYPES).map(k=>`<span class="kal-leg-item"><span class="ktype-dot kd-${k}"></span>${KAL_TYPES[k]}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>📝 Övrigt – anteckningar för veckan</h3></div>
+        <div class="sec-body">
+          <textarea id="kal-note" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--br);border-radius:9px;font-size:13px;font-family:inherit;color:var(--tx);outline:none;box-sizing:border-box;resize:vertical;" placeholder="Fri text – påminnelser, mål, händelser…">${esc(noteRow?noteRow.note:'')}</textarea>
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:.7rem;">
+            <span id="kal-note-msg" style="font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;"></span>
+            <button class="btn btn-s" id="kal-note-save">Spara anteckning</button>
+          </div>
+        </div>
+      </div>
+      <div id="kal-msg" style="display:none;border-radius:8px;padding:11px 13px;font-size:13px;white-space:pre-line;margin-top:1rem;"></div>
+    </div>`;
+
+  function go(week){S.kalWeek=week;renderKalender(main);}
+  main.querySelector('#kal-prev').addEventListener('click',()=>go(isoLocal(kalDayDate(S.kalWeek,-7))));
+  main.querySelector('#kal-next').addEventListener('click',()=>go(isoLocal(kalDayDate(S.kalWeek,7))));
+  main.querySelector('#kal-today').addEventListener('click',()=>go(kalDefaultWeek()));
+  main.querySelectorAll('.kcell').forEach(td=>td.addEventListener('click',()=>showKalCellModal(main,+td.dataset.d,+td.dataset.s)));
+  main.querySelector('#kal-note-save').addEventListener('click',async()=>{
+    const txt=main.querySelector('#kal-note').value;
+    const btn=main.querySelector('#kal-note-save');btn.disabled=true;btn.textContent='Sparar…';
+    let error=null;
+    try{const r=await sb.from('salj_schedule').upsert(
+      {week:S.kalWeek,day_idx:-1,slot_idx:0,type:'ovrigt',note:txt,updated_at:new Date().toISOString()},
+      {onConflict:'week,day_idx,slot_idx'});error=r.error;}catch(e){error=e;}
+    btn.disabled=false;btn.textContent='Spara anteckning';
+    const m=main.querySelector('#kal-note-msg');
+    if(error){m.style.color='var(--err)';m.textContent='✗ Kunde inte spara';}
+    else{m.style.color='var(--g)';m.textContent='✓ Sparat';S.kalLoadedWeek=null;}
+    m.style.opacity='1';setTimeout(()=>{const e=main.querySelector('#kal-note-msg');if(e)e.style.opacity='0';},2200);
+  });
+  main.querySelector('#kal-copy').addEventListener('click',()=>kalCopyLastWeek(main));
+  main.querySelector('#kal-report').addEventListener('click',()=>kalSendReport(main));
+}
+
+function showKalCellModal(main,day,slot){
+  const mc=document.getElementById('mc');
+  const ov=document.createElement('div');ov.className='overlay';
+  const cur=(S.kalRows||[]).find(r=>r.day_idx===day&&r.slot_idx===slot);
+  const dt=kalDayDate(S.kalWeek,day);
+  let selType=cur?cur.type:null;
+  const sellers=S.allSellers||[];
+  ov.innerHTML=`<div class="modal" style="max-width:380px;">
+    <h2>${KAL_DAYS[day]} ${dt.getDate()}/${dt.getMonth()+1}</h2>
+    <p style="margin-top:-4px;">${KAL_SLOTS[slot]}</p>
+    <div id="kal-types">
+      ${Object.keys(KAL_TYPES).map(k=>`<div class="ktype-opt${selType===k?' sel':''}" data-k="${k}"><span class="ktype-dot kd-${k}"></span>${KAL_TYPES[k]}</div>`).join('')}
+    </div>
+    <div style="margin:12px 0 1.1rem;">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--mu);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;">Säljare (valfritt)</label>
+      <select id="kal-seller" style="width:100%;padding:9px 11px;border:1.5px solid var(--br);border-radius:8px;font-size:13px;background:var(--bg);color:var(--tx);outline:none;font-family:inherit;box-sizing:border-box;">
+        <option value="">— Ingen —</option>
+        ${sellers.map(s=>`<option value="${s.id}" ${cur&&cur.seller_id===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="kal-cell-msg" style="display:none;font-size:12px;font-weight:600;color:var(--err);margin-bottom:.7rem;"></div>
+    <div class="modal-actions">
+      ${cur?'<button class="btn btn-d" id="kal-cell-del">Ta bort</button>':''}
+      <button class="btn btn-s" id="kal-cell-cancel">Avbryt</button>
+      <button class="btn btn-p" id="kal-cell-save">Spara</button>
+    </div>
+  </div>`;
+  function close(){mc.innerHTML='';}
+  ov.querySelector('#kal-cell-cancel').addEventListener('click',close);
+  ov.addEventListener('click',e=>{if(e.target===ov)close();});
+  ov.querySelectorAll('.ktype-opt').forEach(o=>o.addEventListener('click',()=>{
+    selType=o.dataset.k;
+    ov.querySelectorAll('.ktype-opt').forEach(x=>x.classList.toggle('sel',x===o));
+  }));
+  function reloadAndClose(){close();S.kalLoadedWeek=null;renderKalender(main);}
+  ov.querySelector('#kal-cell-save').addEventListener('click',async()=>{
+    const m=ov.querySelector('#kal-cell-msg');
+    if(!selType){m.style.display='block';m.textContent='Välj en passtyp.';return;}
+    const sid=ov.querySelector('#kal-seller').value||null;
+    const btn=ov.querySelector('#kal-cell-save');btn.disabled=true;btn.textContent='Sparar…';
+    let error=null;
+    try{const r=await sb.from('salj_schedule').upsert(
+      {week:S.kalWeek,day_idx:day,slot_idx:slot,type:selType,seller_id:sid,updated_at:new Date().toISOString()},
+      {onConflict:'week,day_idx,slot_idx'});error=r.error;}catch(e){error=e;}
+    if(error){btn.disabled=false;btn.textContent='Spara';m.style.display='block';m.textContent='Kunde inte spara: '+(error.message||error);return;}
+    reloadAndClose();
+  });
+  const del=ov.querySelector('#kal-cell-del');
+  if(del)del.addEventListener('click',async()=>{
+    del.disabled=true;
+    try{await sb.from('salj_schedule').delete().eq('week',S.kalWeek).eq('day_idx',day).eq('slot_idx',slot);}catch(e){}
+    reloadAndClose();
+  });
+  mc.innerHTML='';mc.appendChild(ov);
+}
+
+function kalShowMsg(main,msg,bad){
+  const m=main.querySelector('#kal-msg');if(!m)return;
+  m.style.display='block';
+  m.style.background=bad?'var(--errl)':'#EAF4EE';
+  m.style.color=bad?'var(--err)':'var(--gd)';
+  m.style.borderLeft='3px solid '+(bad?'var(--err)':'var(--g)');
+  m.textContent=msg;
+}
+
+async function kalCopyLastWeek(main){
+  if(!confirm('Kopiera alla bokade pass från förra veckan till denna vecka? Befintliga pass skrivs över.'))return;
+  const prev=isoLocal(kalDayDate(S.kalWeek,-7));
+  let prevRows=[];
+  try{const r=await sb.from('salj_schedule').select('*').eq('week',prev);prevRows=r.data||[];}catch(e){}
+  const toCopy=prevRows.filter(r=>r.day_idx>=0&&r.type);
+  if(!toCopy.length){kalShowMsg(main,'Förra veckan hade inga bokade pass att kopiera.',true);return;}
+  const upserts=toCopy.map(r=>({week:S.kalWeek,day_idx:r.day_idx,slot_idx:r.slot_idx,type:r.type,seller_id:r.seller_id||null,updated_at:new Date().toISOString()}));
+  let error=null;
+  try{const r=await sb.from('salj_schedule').upsert(upserts,{onConflict:'week,day_idx,slot_idx'});error=r.error;}catch(e){error=e;}
+  if(error){kalShowMsg(main,'✗ Kunde inte kopiera: '+(error.message||error),true);return;}
+  S.kalLoadedWeek=null;renderKalender(main);
+}
+
+async function kalSendReport(main){
+  const rows=S.kalRows||[];
+  const sellerName=id=>{const x=(S.allSellers||[]).find(s=>s.id===id);return x?x.name:'';};
+  const days=KAL_DAYS.map((dn,d)=>{
+    const dt=kalDayDate(S.kalWeek,d);
+    const passes=[];
+    KAL_SLOTS.forEach((sl,s)=>{
+      const c=rows.find(r=>r.day_idx===d&&r.slot_idx===s);
+      if(c&&c.type)passes.push({time:sl,type:KAL_TYPES[c.type]||c.type,seller:c.seller_id?sellerName(c.seller_id):''});
+    });
+    return {label:dn+' '+dt.getDate()+'/'+(dt.getMonth()+1),passes:passes};
+  });
+  const noteRow=rows.find(r=>r.day_idx===-1);
+  const total=days.reduce((a,d)=>a+d.passes.length,0);
+  if(!confirm('Skicka veckorapporten ('+total+' bokade pass) till tl@smartid.se och kt@smartid.se?'))return;
+  const btn=main.querySelector('#kal-report');btn.disabled=true;btn.textContent='Skickar…';
+  let res;
+  try{res=await sb.functions.invoke('send-week-report',{body:{weekLabel:kalWeekLabel(S.kalWeek),days:days,note:noteRow?noteRow.note:''}});}
+  catch(e){res={error:e};}
+  btn.disabled=false;btn.textContent='📧 Skicka veckorapport';
+  if(res.error){kalShowMsg(main,'✗ Kunde inte nå servern. Är Edge Function-en deployad?\n'+(res.error.message||res.error),true);return;}
+  if(!res.data||!res.data.ok){kalShowMsg(main,'✗ '+((res.data&&res.data.error)||'Okänt fel.'),true);return;}
+  kalShowMsg(main,'✓ '+(res.data.message||'Veckorapport skickad.'),false);
 }
 
 /* ============================================================
