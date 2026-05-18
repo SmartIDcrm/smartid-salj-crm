@@ -1450,6 +1450,16 @@ function renderCoachProvision(main){
     const sad=a('sold_a49')+a('sold_a79')+a('sold_a99');
     return {name:s.name,sg:ssg,pa:spa,fa:sfa,ad:sad,prov:ssg*2+spa*4+sfa*6+sad*2};
   }).filter(x=>x.prov>0).sort((a,b)=>b.prov-a.prov);
+  /* Säljarnas EGEN provision (säljartariff 5/10/15/5) */
+  const SR=ROLES.saljare;
+  const sellerProv=sellers.map(s=>{
+    const sr=teamRows.filter(d=>d.seller_id===s.id);
+    const a=k=>sr.reduce((x,d)=>x+n(d[k]),0);
+    const sg=a('sold_s189'),pa=a('sold_s229'),fa=a('sold_s279');
+    const ad=a('sold_a49')+a('sold_a79')+a('sold_a99');
+    return {name:s.name,sg,pa,fa,ad,prov:sg*SR.s189+pa*SR.s229+fa*SR.s279+ad*SR.a49};
+  }).sort((a,b)=>b.prov-a.prov);
+  const sellerProvTot=sellerProv.reduce((a,x)=>a+x.prov,0);
   const catRow=(name,rate,cnt,prov)=>`<tr>
     <td class="h-day">${name}</td>
     <td class="h-num" style="color:var(--gold);">€${rate}</td>
@@ -1463,6 +1473,7 @@ function renderCoachProvision(main){
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
         <div class="kpi fade-in"><div class="kpi-ic gold">€</div><div class="kpi-l">Coachprovision (teamet)</div><div class="kpi-v" style="color:var(--gold);">€${teamProv}</div><div class="kpi-sub">Säljarnas försäljning</div></div>
         <div class="kpi fade-in"><div class="kpi-ic gold">€</div><div class="kpi-l">Provision egna sälj</div><div class="kpi-v" style="color:var(--gold);">€${ownProv}</div><div class="kpi-sub">Din egen försäljning</div></div>
+        <div class="kpi fade-in"><div class="kpi-ic green">€</div><div class="kpi-l">Säljarnas provision</div><div class="kpi-v" style="color:var(--g);">€${sellerProvTot}</div><div class="kpi-sub">Alla säljares egen provision</div></div>
         <div class="kpi fade-in" style="background:linear-gradient(135deg,#FAEEDA,#fff);"><div class="kpi-ic gold">€</div><div class="kpi-l">Totalt ${cap}</div><div class="kpi-v" style="color:var(--gold);">€${grand}</div><div class="kpi-sub">Team + egna sälj</div></div>
       </div>
       <div class="sec fade-in">
@@ -1495,6 +1506,26 @@ function renderCoachProvision(main){
                 <td class="h-num" style="color:var(--purple);">${x.ad}</td>
                 <td class="h-num" style="color:var(--gold);">€${x.prov}</td>
               </tr>`).join('')}
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+      <div class="sec fade-in">
+        <div class="sec-hdr"><h3>💰 Säljarnas provision</h3><span style="font-size:11px;color:var(--mu);">Vad varje säljare själv tjänar in</span></div>
+        <div class="sec-body" style="padding:0;">
+          ${sellerProv.length===0?'<div class="empty"><p>Inga säljare</p></div>':`
+          <div class="htable-wrap"><table class="htable">
+            <thead><tr><th>Säljare</th><th>Singel</th><th>Par</th><th>Familj</th><th>Tillägg</th><th>Provision</th></tr></thead>
+            <tbody>
+              ${sellerProv.map(x=>`<tr>
+                <td class="h-day">${esc(x.name)}</td>
+                <td class="h-num">${x.sg}</td>
+                <td class="h-num">${x.pa}</td>
+                <td class="h-num">${x.fa}</td>
+                <td class="h-num" style="color:var(--purple);">${x.ad}</td>
+                <td class="h-num" style="color:var(--gold);">€${x.prov}</td>
+              </tr>`).join('')}
+              <tr class="tot-row"><td>TOTALT ALLA SÄLJARE</td><td></td><td></td><td></td><td></td><td style="color:var(--gold);">€${sellerProvTot}</td></tr>
             </tbody>
           </table></div>`}
         </div>
@@ -3381,7 +3412,7 @@ function renderTeamStats(main){
   if(S.role!=='coach'){renderPlaceholder(main,'teamstats');return;}
   const sellers=S.allSellers||[];
   if(!sellers.length){
-    main.innerHTML=`<div class="ph"><div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">Lägg till / ta bort sälj</div></div></div>
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">All provision och statistik per säljare</div></div></div>
       <div class="ca"><div class="empty"><p>Inga säljare ännu</p><small>Lägg till säljare i fliken Lägg till säljare först</small></div></div>`;
     return;
   }
@@ -3391,63 +3422,95 @@ function renderTeamStats(main){
   const existing=(S.allStats||[]).find(x=>x.seller_id===S.tsSellerId&&x.date===S.tsDate);
   const d=existing?{...existing}:emptyDay(S.tsDate);
 
+  /* Säljarens egen provision (säljartariff 5/10/15/5) över all registrerad statistik */
+  const SR=ROLES.saljare;
+  const myDays=(S.allStats||[]).filter(x=>x.seller_id===seller.id);
+  const tk=k=>myDays.reduce((a,x)=>a+n(x[k]),0);
+  const psg=tk('sold_s189'),ppa=tk('sold_s229'),pfa=tk('sold_s279');
+  const pa1=tk('sold_a49'),pa2=tk('sold_a79'),pa3=tk('sold_a99');
+  const pAdd=pa1*SR.a49+pa2*SR.a79+pa3*SR.a99;
+  const provTot=psg*SR.s189+ppa*SR.s229+pfa*SR.s279+pAdd;
+  const cr=(name,rate,cnt,tot)=>`<tr><td class="h-day">${name}</td><td class="h-num" style="color:var(--gold);">€${rate}</td><td class="h-num salj">${cnt}</td><td class="h-num" style="color:var(--gold);">€${tot}</td></tr>`;
+  const provSec=`
+    <div class="sec fade-in">
+      <div class="sec-hdr"><h3>💰 ${esc(seller.name)} – provision</h3><span style="font-size:11px;color:var(--mu);">Säljarens egen provision · all registrerad statistik</span></div>
+      <div class="sec-body" style="padding:0;">
+        <div class="htable-wrap"><table class="htable">
+          <thead><tr><th>Kategori</th><th>Provision/st</th><th>Antal</th><th>Total</th></tr></thead>
+          <tbody>
+            ${cr('Singel',SR.s189,psg,psg*SR.s189)}
+            ${cr('Par',SR.s229,ppa,ppa*SR.s229)}
+            ${cr('Familj',SR.s279,pfa,pfa*SR.s279)}
+            ${cr('Tilläggstjänster',SR.a49,pa1+pa2+pa3,pAdd)}
+            <tr class="tot-row"><td>TOTAL PROVISION</td><td></td><td>${psg+ppa+pfa+pa1+pa2+pa3}</td><td style="color:var(--gold);">€${provTot}</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>`;
+
+  const editForm=`
+    <details class="ts-edit" ${S.tsEditOpen?'open':''} style="margin-top:1.5rem;border:1px solid var(--br);border-radius:10px;background:var(--w);">
+      <summary style="cursor:pointer;font-size:14px;font-weight:700;color:var(--gd);padding:13px 15px;user-select:none;list-style-position:inside;">✏️ Lägg till / ta bort sälj för ${esc(seller.name)}</summary>
+      <div style="padding:4px 15px 16px;">
+        <div class="fl" style="max-width:220px;margin-bottom:1rem;"><label>Datum</label><input type="date" id="ts-date" value="${S.tsDate}"></div>
+        <div style="font-size:12px;font-weight:700;color:var(--gd);margin:0 0 .5rem;">💰 Sälj – Paket</div>
+        ${saljRow('Singel','189 kr/mån','s189',d)}${saljRow('Par','229 kr/mån','s229',d)}${saljRow('Familj','279 kr/mån','s279',d)}
+        <div style="font-size:12px;font-weight:700;color:var(--gd);margin:1rem 0 .5rem;">➕ Sälj – Tilläggstjänster</div>
+        ${saljRow('Tillägg Singel','+49 kr','a49',d)}${saljRow('Tillägg Par','+79 kr','a79',d)}${saljRow('Tillägg Familj','+99 kr','a99',d)}
+        <div class="prov-grid" style="margin-top:1rem;">
+          <div class="prov-item"><span class="pl">Totalt sålda paket</span><span class="pv" id="ps-pkg">0</span></div>
+          <div class="prov-item"><span class="pl">Totalt sålda tillägg</span><span class="pv" id="ps-add">0</span></div>
+          <div class="prov-item"><span class="pl">Totalt ångrade</span><span class="pv" id="ps-ang" style="color:var(--err);">0</span></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+          <button class="btn btn-p" id="ts-save">💾 Spara för ${esc(seller.name)}</button>
+        </div>
+        <div id="ts-msg" style="text-align:right;margin-top:.6rem;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;"></div>
+      </div>
+    </details>`;
+
   main.innerHTML=`
     <div class="ph">
-      <div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">${existing?'Redigerar en sparad dag':'Lägg till / ta bort sälj'}</div></div>
+      <div><div class="ph-t">Statistik säljare <span class="role-pill">Coach</span></div><div class="ph-s">All provision och statistik per säljare</div></div>
       <div class="ph-a"><button class="btn btn-s" id="ts-import">📤 Importera Excel</button></div>
     </div>
     <div class="ca">
       <div class="sec fade-in">
-        <div class="sec-hdr"><h3>👥 Välj säljare och datum</h3></div>
-        <div class="sec-body"><div class="daily-form">
-          <div class="fl"><label>Säljare</label><select id="ts-seller">${sellers.map(s=>`<option value="${s.id}" ${s.id===S.tsSellerId?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
-          <div class="fl"><label>Datum</label><input type="date" id="ts-date" value="${S.tsDate}"></div>
-        </div></div>
+        <div class="sec-hdr"><h3>👥 Välj säljare</h3></div>
+        <div class="sec-body"><div class="fl" style="max-width:280px;"><label>Säljare</label><select id="ts-seller">${sellers.map(s=>`<option value="${s.id}" ${s.id===S.tsSellerId?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div></div>
       </div>
-      <div class="sec fade-in">
-        <div class="sec-hdr"><h3>💰 Sälj – Paket</h3></div>
-        <div class="sec-body">${saljRow('Singel','189 kr/mån','s189',d)}${saljRow('Par','229 kr/mån','s229',d)}${saljRow('Familj','279 kr/mån','s279',d)}</div>
-      </div>
-      <div class="sec fade-in">
-        <div class="sec-hdr"><h3>➕ Sälj – Tilläggstjänster</h3></div>
-        <div class="sec-body">${saljRow('Tillägg Singel','+49 kr','a49',d)}${saljRow('Tillägg Par','+79 kr','a79',d)}${saljRow('Tillägg Familj','+99 kr','a99',d)}</div>
-      </div>
-      <div class="sec fade-in">
-        <div class="sec-hdr"><h3>📊 Sammanfattning</h3></div>
-        <div class="sec-body">
-          <div class="prov-grid">
-            <div class="prov-item"><span class="pl">Totalt sålda paket</span><span class="pv" id="ps-pkg">0</span></div>
-            <div class="prov-item"><span class="pl">Totalt sålda tillägg</span><span class="pv" id="ps-add">0</span></div>
-            <div class="prov-item"><span class="pl">Totalt ångrade</span><span class="pv" id="ps-ang" style="color:var(--err);">0</span></div>
-            <div class="prov-item"><span class="pl">Provision</span><span class="pv" id="ps-prov" style="color:var(--gold);">€0</span></div>
-          </div>
-          <div style="display:flex;justify-content:flex-end;margin-top:1.2rem;">
-            <button class="btn btn-p" id="ts-save">💾 Spara för ${esc(seller.name)}</button>
-          </div>
-          <div id="ts-msg" style="text-align:right;margin-top:.6rem;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;"></div>
-        </div>
-      </div>
+      ${provSec}
+      ${renderAllStatsSeller(seller,S.allStats||[])}
+      ${editForm}
     </div>`;
 
-  function val(id){return parseInt(document.getElementById(id).value)||0;}
-  function collect(){
-    ['s189','s229','s279','a49','a79','a99'].forEach(k=>{d['sold_'+k]=val('f-'+k);d['ang_'+k]=val('f-a'+k);});
-  }
-  function refresh(){
-    collect();
-    document.getElementById('ps-pkg').textContent=dayTotalSalj(d);
-    document.getElementById('ps-add').textContent=dayTotalAddon(d);
-    document.getElementById('ps-ang').textContent=dayTotalAng(d);
-    document.getElementById('ps-prov').textContent='€'+dayProvision(d);
+  function val(id){const e=document.getElementById(id);return e?parseInt(e.value)||0:0;}
+  function collect(){['s189','s229','s279','a49','a79','a99'].forEach(k=>{d['sold_'+k]=val('f-'+k);d['ang_'+k]=val('f-a'+k);});}
+  function refresh(){collect();
+    const e1=document.getElementById('ps-pkg');if(e1)e1.textContent=dayTotalSalj(d);
+    const e2=document.getElementById('ps-add');if(e2)e2.textContent=dayTotalAddon(d);
+    const e3=document.getElementById('ps-ang');if(e3)e3.textContent=dayTotalAng(d);
   }
   main.querySelectorAll('input[type=number]').forEach(inp=>inp.addEventListener('input',refresh));
   refresh();
+  const det=main.querySelector('.ts-edit');
+  if(det)det.addEventListener('toggle',()=>{S.tsEditOpen=det.open;});
   main.querySelector('#ts-seller').addEventListener('change',e=>{S.tsSellerId=e.target.value;renderTeamStats(main);});
-  main.querySelector('#ts-date').addEventListener('change',e=>{if(e.target.value){S.tsDate=e.target.value;renderTeamStats(main);}});
+  const dt=main.querySelector('#ts-date');
+  if(dt)dt.addEventListener('change',e=>{if(e.target.value){S.tsDate=e.target.value;S.tsEditOpen=true;renderTeamStats(main);}});
   main.querySelector('#ts-import').addEventListener('click',showImportModal);
-  main.querySelector('#ts-save').addEventListener('click',async()=>{
+  const dayToggle=document.getElementById('as-day-toggle');
+  if(dayToggle)dayToggle.addEventListener('click',()=>{
+    const oldRows=main.querySelectorAll('.as-old-row');
+    const expand=oldRows.length>0&&oldRows[0].style.display==='none';
+    oldRows.forEach(r=>{r.style.display=expand?'':'none';});
+    dayToggle.innerHTML=expand?'▲ Visa bara senaste veckan'
+      :'▼ Visa alla '+main.querySelectorAll('.as-day-row').length+' dagar <span style="color:var(--mu);font-weight:400;">('+oldRows.length+' äldre dolda)</span>';
+  });
+  const sv=main.querySelector('#ts-save');
+  if(sv)sv.addEventListener('click',async()=>{
     collect();
-    const btn=main.querySelector('#ts-save');btn.disabled=true;btn.textContent='Sparar…';
+    sv.disabled=true;sv.textContent='Sparar…';
     const row={seller_id:S.tsSellerId,date:S.tsDate,
       samtal:n(d.samtal),nej:n(d.nej),callbacks:n(d.callbacks),aktiv_min:n(d.aktiv_min),
       sold_s189:n(d.sold_s189),sold_s229:n(d.sold_s229),sold_s279:n(d.sold_s279),
@@ -3457,8 +3520,9 @@ function renderTeamStats(main){
       source:'manual',updated_at:new Date().toISOString()};
     let error=null;
     try{const r=await sb.from('seller_daily_stats').upsert(row,{onConflict:'seller_id,date'});error=r.error;}catch(e){error=e;}
-    const msg=main.querySelector('#ts-msg');
-    if(error){btn.disabled=false;btn.textContent='💾 Spara för '+seller.name;msg.style.color='var(--err)';msg.textContent='✗ Kunde inte spara: '+(error.message||error);msg.style.opacity='1';return;}
+    const msg=document.getElementById('ts-msg');
+    if(error){sv.disabled=false;sv.textContent='💾 Spara för '+seller.name;if(msg){msg.style.color='var(--err)';msg.textContent='✗ Kunde inte spara: '+(error.message||error);msg.style.opacity='1';}return;}
+    S.tsEditOpen=true;
     await loadDashboardData();
     renderTeamStats(main);
     const m2=document.getElementById('ts-msg');
