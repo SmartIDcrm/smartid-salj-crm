@@ -1181,7 +1181,6 @@ function renderDagligt(main){
             <div class="prov-item"><span class="pl">Totalt sålda paket</span><span class="pv" id="ps-pkg">0</span></div>
             <div class="prov-item"><span class="pl">Totalt sålda tillägg</span><span class="pv" id="ps-add">0</span></div>
             <div class="prov-item"><span class="pl">Totalt ångrade</span><span class="pv" id="ps-ang" style="color:var(--err);">0</span></div>
-            ${isCoach?'<div class="prov-item"><span class="pl">Orderbelopp</span><span class="pv" id="ps-order">0 kr</span></div>':''}
             <div class="prov-item"><span class="pl">Provision idag</span><span class="pv" id="ps-prov" style="color:var(--gold);">€0</span></div>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:1.2rem;">
@@ -1204,7 +1203,6 @@ function renderDagligt(main){
     document.getElementById('ps-pkg').textContent=dayTotalSalj(d);
     document.getElementById('ps-add').textContent=dayTotalAddon(d);
     document.getElementById('ps-ang').textContent=dayTotalAng(d);
-    const po=document.getElementById('ps-order');if(po)po.textContent=dayOrderbelopp(d)+' kr';
     document.getElementById('ps-prov').textContent='€'+dayProvision(d);
   }
   main.querySelectorAll('input[type=number]').forEach(inp=>inp.addEventListener('input',refresh));
@@ -1244,11 +1242,11 @@ function renderDagligt(main){
 function renderHistorik(main){
   const sorted=[...S.dailyStats].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const isCoach=S.role==='coach';
-  const tot={samtal:0,nej:0,cb:0,aktiv:0,salj:0,addon:0,ang:0,order:0,prov:0};
+  const tot={samtal:0,nej:0,cb:0,aktiv:0,salj:0,addon:0,ang:0,prov:0};
   sorted.forEach(d=>{
     tot.samtal+=n(d.samtal);tot.nej+=n(d.nej);tot.cb+=n(d.callbacks);tot.aktiv+=n(d.aktiv_min);
     tot.salj+=dayTotalSalj(d);tot.addon+=dayTotalAddon(d);tot.ang+=dayTotalAng(d);
-    tot.order+=dayOrderbelopp(d);tot.prov+=dayProvision(d);
+    tot.prov+=dayProvision(d);
   });
   const notice=!S.seller?'<div class="notice warn">⚠️ Kontot är inte kopplat till en säljarprofil ännu.</div>':'';
   main.innerHTML=`
@@ -1260,7 +1258,7 @@ function renderHistorik(main){
         <div class="sec-body">
           ${sorted.length===0?'<div class="empty"><p>Inga dagar registrerade ännu</p><small>Gå till Daglig rapport för att fylla i</small></div>':`
           <div class="htable-wrap"><table class="htable">
-            <thead><tr><th>Dag</th><th>Samtal</th><th>Nej</th><th>CB</th><th>Sälj</th><th>Tillägg</th><th>Ångr</th>${isCoach?'<th>Order</th>':''}<th>Provision</th></tr></thead>
+            <thead><tr><th>Dag</th><th>Samtal</th><th>Nej</th><th>CB</th><th>Sälj</th><th>Tillägg</th><th>Ångr</th><th>Provision</th></tr></thead>
             <tbody>
               ${sorted.map(d=>`<tr>
                 <td class="h-day">${fmtDate(d.date)}</td>
@@ -1270,14 +1268,12 @@ function renderHistorik(main){
                 <td class="h-num salj">${dayTotalSalj(d)}</td>
                 <td class="h-num" style="color:var(--purple);">${dayTotalAddon(d)}</td>
                 <td class="h-num" style="color:${dayTotalAng(d)>0?'var(--err)':'var(--mu)'};">${dayTotalAng(d)}</td>
-                ${isCoach?`<td class="h-num">${dayOrderbelopp(d)} kr</td>`:''}
                 <td class="h-num" style="color:var(--gold);">€${dayProvision(d)}</td>
               </tr>`).join('')}
               <tr class="tot-row">
                 <td>TOTALT</td><td>${tot.samtal}</td><td>${tot.nej}</td><td>${tot.cb}</td>
                 <td class="salj">${tot.salj}</td><td style="color:var(--purple);">${tot.addon}</td>
                 <td style="color:${tot.ang>0?'var(--err)':'var(--mu)'};">${tot.ang}</td>
-                ${isCoach?`<td>${tot.order} kr</td>`:''}
                 <td style="color:var(--gold);">€${tot.prov}</td>
               </tr>
             </tbody>
@@ -3346,10 +3342,15 @@ async function kalSendReport(main){
   });
   const noteRow=rows.find(r=>r.day_idx===-1);
   const total=days.reduce((a,d)=>a+d.passes.length,0);
+  // Veckans ordervärde — summa av alla säljares orderbelopp mån–fre
+  const monday=S.kalWeek,friday=isoLocal(kalDayDate(S.kalWeek,4));
+  const orderValue=(S.allStats||[])
+    .filter(d=>String(d.date)>=monday&&String(d.date)<=friday)
+    .reduce((a,d)=>a+dayOrderbelopp(d),0);
   if(!confirm('Skicka veckorapporten ('+total+' bokade pass) till tl@smartid.se och kt@smartid.se?'))return;
   const btn=main.querySelector('#kal-report');btn.disabled=true;btn.textContent='Skickar…';
   let res;
-  try{res=await sb.functions.invoke('send-week-report',{body:{weekLabel:kalWeekLabel(S.kalWeek),days:days,note:noteRow?noteRow.note:''}});}
+  try{res=await sb.functions.invoke('send-week-report',{body:{weekLabel:kalWeekLabel(S.kalWeek),days:days,note:noteRow?noteRow.note:'',orderValue:orderValue}});}
   catch(e){res={error:e};}
   btn.disabled=false;btn.textContent='📧 Skicka veckorapport';
   if(res.error){kalShowMsg(main,'✗ Kunde inte nå servern. Är Edge Function-en deployad?\n'+(res.error.message||res.error),true);return;}
