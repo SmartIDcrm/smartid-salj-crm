@@ -4775,8 +4775,42 @@ async function chatSend(msg){
     typing.remove();
     if(data.ok){
       chatState.sessionId=data.session_id;
-      const a=document.createElement('div');a.className='ai-msg ai-msg-a';a.innerHTML=esc(data.reply).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+      const a=document.createElement('div');a.className='ai-msg ai-msg-a';
+      // Replace [LYSSNA cdr=X] tags med fina länkar i texten
+      let textHtml=esc(data.reply).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+        .replace(/\[LYSSNA cdr=(\d+)\]/g,'<span style="background:var(--bluel);color:var(--blue);padding:1px 6px;border-radius:4px;font-size:11.5px;font-weight:600;">🎧 cdr $1</span>');
+      a.innerHTML=textHtml;
       msgs.appendChild(a);
+      // Rendera audio-spelare för varje audio_ref
+      if(data.audio_refs&&data.audio_refs.length){
+        data.audio_refs.forEach(ref=>{
+          const ap=document.createElement('div');
+          ap.className='ai-msg ai-msg-a';
+          ap.style.cssText='max-width:95%;background:var(--bg2);';
+          const mm=Math.floor((ref.duration_s||0)/60);
+          const ss=Math.floor((ref.duration_s||0)%60);
+          const dt=(ref.recorded_at||'').slice(0,16).replace('T',' ');
+          ap.innerHTML=`
+            <div style="font-size:11.5px;color:var(--mu);margin-bottom:6px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;">
+              <span><strong style="color:var(--gd);">cdr ${esc(ref.cdr_id)}</strong> · ${dt} · ${mm}:${ss<10?'0'+ss:ss}</span>
+              <span>${esc(ref.seller_name||'')} · ${esc(ref.status||'')}</span>
+            </div>
+            <audio controls preload="none" style="width:100%;height:34px;"><source src="${esc(ref.signed_url)}" type="audio/mpeg"></audio>
+            <div style="margin-top:6px;"><a href="#" data-rid="${esc(ref.recording_id)}" class="ai-open-report" style="font-size:11px;color:var(--g);text-decoration:none;font-weight:600;">📊 Öppna full rapport →</a></div>`;
+          msgs.appendChild(ap);
+        });
+        // Wire öppna-rapport-länkar
+        msgs.querySelectorAll('.ai-open-report').forEach(el=>{
+          el.onclick=(e)=>{e.preventDefault();
+            if(!S.sa)S.sa={};
+            S.sa.openId=el.dataset.rid;S.sa.detail=null;
+            S.tab='samtalsanalys';
+            document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));
+            document.querySelector('.sbi[data-tab="samtalsanalys"]')?.classList.add('active');
+            chatToggle();render();
+          };
+        });
+      }
     }else{
       const a=document.createElement('div');a.className='ai-msg ai-msg-a';a.textContent='Fel: '+(data.error||'okänt');msgs.appendChild(a);
     }
