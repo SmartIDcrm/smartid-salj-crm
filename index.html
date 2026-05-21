@@ -539,7 +539,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="sbi" data-tab="saljutbildning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l4-4 3 3 4-4"/><circle cx="13" cy="3" r="1.5"/></svg><span>Säljutbildning</span></button>
       <button class="sbi" data-tab="ljudfiler"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v12"/><path d="M5 5v6"/><path d="M11 5v6"/><path d="M2 7v2"/><path d="M14 7v2"/></svg><span>Ljudfiler</span></button>
       <button class="sbi" data-tab="coachning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h12v8H6l-3 3z"/><path d="M5 6h6M5 8h4"/></svg><span>Coachning</span></button>
-      <button class="sbi" data-tab="samtalsanalys"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a5 5 0 0 1 10 0"/><path d="M2 8v3a1 1 0 0 0 1 1h1V8"/><path d="M14 8v3a1 1 0 0 1-1 1h-1V8"/><circle cx="8" cy="13" r="1"/></svg><span>Samtalsanalys</span></button>
+      <button class="sbi coach-only" data-tab="samtalsanalys"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a5 5 0 0 1 10 0"/><path d="M2 8v3a1 1 0 0 0 1 1h1V8"/><path d="M14 8v3a1 1 0 0 1-1 1h-1V8"/><circle cx="8" cy="13" r="1"/></svg><span>Samtalsanalys</span></button>
       <div class="sb-sec">Verktyg</div>
       <button class="sbi" data-tab="mal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg><span>Mål &amp; Streak</span></button>
       <button class="sbi" data-tab="tavlingar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2h6v3a3 3 0 0 1-6 0z"/><path d="M5 3H3v1a2 2 0 0 0 2 2"/><path d="M11 3h2v1a2 2 0 0 1-2 2"/><line x1="8" y1="8" x2="8" y2="11"/><path d="M5.5 14h5l-.5-3h-4z"/></svg><span>Tävlingar</span></button>
@@ -3928,6 +3928,16 @@ function saBadgeComp(s){
 }
 
 function renderSamtalsanalys(main){
+  // Hård säkerhetsspärr — säljare ska INTE se samtalsanalys (regel 2026-05-21)
+  if(S.role!=='coach'&&S.role!=='admin'&&S.role!=='kundtjanst'){
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Åtkomst nekad</div></div></div>
+      <div class="ca"><div class="empty" style="padding:3rem;text-align:center;">
+        <div style="font-size:48px;margin-bottom:1rem;">🔒</div>
+        <p style="font-size:14px;font-weight:600;">Endast tillgängligt för coach</p>
+        <small style="color:var(--mu);">Samtalsanalys visas inte för säljare just nu.</small>
+      </div></div>`;
+    return;
+  }
   saInjectStyles();
   if(!S.sa)S.sa={loaded:false,samtal:[],query:'',filterSeller:'',filterStatus:'',filterFrom:'',filterTo:'',openId:null,detail:null};
 
