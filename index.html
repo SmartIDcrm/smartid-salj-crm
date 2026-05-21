@@ -4014,7 +4014,10 @@ async function loadSaResults(main){
       });
       rows=data||[];
     }else{
-      let q=sb.from('v_call_overview').select('*').order('recorded_at',{ascending:false}).limit(100);
+      // Hämta bara fält som listvyn behöver — text_full (4-30 KB/rad) hämtas vid detaljvy
+      let q=sb.from('v_call_overview')
+        .select('recording_id,cdr_id,adversus_lead_id,recorded_at,duration_s,status_at_close,seller_id,seller_name,customer_id,talk_ratio_interactive,compliance_score,call_quality_score,regret_risk,summary,sentiment_seller,sentiment_customer')
+        .order('recorded_at',{ascending:false}).limit(100);
       if(S.role!=='coach'&&S.seller)q=q.eq('seller_id',S.seller.id);
       if(sa.filterSeller)q=q.eq('seller_id',sa.filterSeller);
       if(sa.filterStatus)q=q.eq('status_at_close',sa.filterStatus);
