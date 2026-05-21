@@ -1031,7 +1031,7 @@ async function loadDashboardData(){
   if(S.role==='coach'){
     try{
       const sres=await sb.from('sellers').select('*').eq('active',true).order('name',{ascending:true});
-      S.allSellers=(sres.data||[]).filter(s=>!s.deleted);
+      S.allSellers=(sres.data||[]).filter(s=>!s.deleted&&!s.hidden_in_ui);
       const ares=await sb.from('seller_daily_stats').select('*').order('date',{ascending:true});
       S.allStats=ares.data||[];
       const mres=await sb.from('salj_monthly_dialer').select('*');
@@ -1069,6 +1069,36 @@ function paintSidebar(){
   if(typeof updateSidebarBadges==='function')updateSidebarBadges();
   /* V3 topbar + command palette */
   if(typeof initV3Skal==='function')initV3Skal();
+  /* V3.1 collapse-grupper i sidebar */
+  if(typeof initSidebarGroups==='function')initSidebarGroups();
+}
+
+function initSidebarGroups(){
+  const nav=document.getElementById('sb-nav');if(!nav)return;
+  if(nav.dataset.groupsInit)return;nav.dataset.groupsInit='1';
+  let collapsed={};try{collapsed=JSON.parse(localStorage.getItem('v3-sb-collapsed')||'{}');}catch{}
+  const applyState=()=>{
+    const children=Array.from(nav.children);
+    let currentGroup=null;
+    children.forEach(el=>{
+      if(el.classList.contains('sb-group')){
+        currentGroup=el.textContent.trim();
+        const isC=!!collapsed[currentGroup];
+        el.classList.toggle('collapsed',isC);
+      }else if(el.classList.contains('sbi')&&currentGroup){
+        el.classList.toggle('collapsed',!!collapsed[currentGroup]);
+      }
+    });
+  };
+  nav.querySelectorAll('.sb-group').forEach(g=>{
+    g.addEventListener('click',()=>{
+      const k=g.textContent.trim();
+      collapsed[k]=!collapsed[k];
+      try{localStorage.setItem('v3-sb-collapsed',JSON.stringify(collapsed));}catch{}
+      applyState();
+    });
+  });
+  applyState();
 }
 
 /* ============================================================
@@ -2589,8 +2619,8 @@ async function loadAndRenderTavlingar(main){
     }catch(e){S.standings[c.id]=[];}
   }
   if(S.role==='coach'){
-    try{const r=await sb.from('sellers').select('id,name,active,deleted').order('name',{ascending:true});
-      S.allSellers=(r.data||[]).filter(s=>s.active&&!s.deleted);}catch(e){}
+    try{const r=await sb.from('sellers').select('id,name,active,deleted,hidden_in_ui').order('name',{ascending:true});
+      S.allSellers=(r.data||[]).filter(s=>s.active&&!s.deleted&&!s.hidden_in_ui);}catch(e){}
   }
   if(S.tab!=='tavlingar')return;
   if(S.role==='coach')renderTavlingarCoach(main);
@@ -2957,7 +2987,8 @@ async function loadAndRenderSellers(main){
   try{const r=await sb.from('profiles').select('*');profiles=r.data||[];}catch(e){}
   if(S.tab!=='team')return;
   sellers=sellers.filter(s=>!s.deleted);
-  S.allSellers=sellers.filter(s=>s.active);
+  // S.allSellers används i dropdowns/statistik — exkludera dolda
+  S.allSellers=sellers.filter(s=>s.active&&!s.hidden_in_ui);
   const roleOf=s=>{const p=profiles.find(x=>x.seller_id===s.id||x.id===s.user_id);return p?p.role:'saljare';};
   const active=sellers.filter(s=>s.active);
   const inactive=sellers.filter(s=>!s.active);
@@ -2968,11 +2999,12 @@ async function loadAndRenderSellers(main){
       <td style="text-align:left;font-size:13px;color:var(--mu);">${esc(s.email||'–')}</td>
       <td style="font-size:12px;font-weight:600;">${r==='coach'?'👑 Coach':'Säljare'}</td>
       <td style="font-size:12px;font-weight:600;color:${s.active?'var(--g)':'var(--mu)'};">${s.active?'● Aktiv':'○ Inaktiv'}</td>
+      <td style="text-align:center;"><input type="checkbox" data-hide-seller="${s.id}" ${s.hidden_in_ui?'checked':''} title="Dölj från tabeller/statistik utan att radera"></td>
       <td style="text-align:right;white-space:nowrap;"><button class="btn btn-s btn-xs" data-toggle-seller="${s.id}" data-cur="${s.active?'1':'0'}">${s.active?'Inaktivera':'Aktivera'}</button><button class="btn btn-d btn-xs" data-del-seller="${s.id}" data-name="${esc(s.name||'')}" style="margin-left:6px;">Radera</button></td>
     </tr>`;
   };
   const tbl=rows=>`<div class="htable-wrap"><table class="htable">
-    <thead><tr><th>Namn</th><th style="text-align:left;">E-post</th><th>Roll</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Namn</th><th style="text-align:left;">E-post</th><th>Roll</th><th>Status</th><th title="Dölj från tabeller utan att radera">Dolda</th><th></th></tr></thead>
     <tbody>${rows.map(row).join('')}</tbody></table></div>`;
   main.innerHTML=`
     <div class="ph">
@@ -2989,6 +3021,16 @@ async function loadAndRenderSellers(main){
       ${inactive.length?`<div class="sec fade-in"><div class="sec-hdr"><h3>Inaktiverade (${inactive.length})</h3></div><div class="sec-body" style="padding:0;">${tbl(inactive)}</div></div>`:''}
     </div>`;
   document.getElementById('seller-add').addEventListener('click',()=>showInviteSellerModal(main));
+  // Hide-säljare-checkbox: dölj från tabeller/statistik utan att radera
+  main.querySelectorAll('[data-hide-seller]').forEach(cb=>cb.addEventListener('change',async()=>{
+    const id=cb.dataset.hideSeller;
+    try{
+      await sb.from('sellers').update({hidden_in_ui:cb.checked}).eq('id',id);
+      // Uppdatera lokal cache
+      const s=sellers.find(x=>x.id===id);if(s)s.hidden_in_ui=cb.checked;
+      S.allSellers=sellers.filter(x=>x.active&&!x.hidden_in_ui);
+    }catch(e){alert('Fel: '+e.message);cb.checked=!cb.checked;}
+  }));
   main.querySelectorAll('[data-toggle-seller]').forEach(b=>b.addEventListener('click',async()=>{
     const id=b.dataset.toggleSeller,cur=b.dataset.cur==='1';
     if(cur&&!confirm('Inaktivera säljaren? De försvinner ur scoreboards och statistik men datan finns kvar.'))return;
@@ -4424,9 +4466,13 @@ function saInjectStyles(){
     .cp-item-sub{font-size:11px;color:var(--mu);margin-left:auto;}
     .cp-footer{padding:8px 14px;background:var(--bg);border-top:1px solid var(--br);font-size:11px;color:var(--mu);display:flex;justify-content:space-between;}
     .cp-kbd{background:var(--w);border:1px solid var(--br);border-radius:3px;padding:1px 5px;font-family:monospace;font-size:10px;margin:0 2px;}
-    /* Sidebar-gruppering */
-    .sb-group{padding:.55rem .8rem .2rem;font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-top:.5rem;}
+    /* Sidebar-gruppering — klickbar collapse/expand */
+    .sb-group{padding:.55rem .8rem .2rem;font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-top:.5rem;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;transition:color .15s;}
     .sb-group:first-of-type{margin-top:0;}
+    .sb-group:hover{color:rgba(255,255,255,.7);}
+    .sb-group::before{content:'▼';font-size:8px;transition:transform .15s;color:inherit;}
+    .sb-group.collapsed::before{transform:rotate(-90deg);}
+    .sbi.collapsed{display:none !important;}
     /* Notification panel */
     .np{position:absolute;top:54px;right:64px;background:var(--w);border:1px solid var(--br);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.18);width:340px;z-index:1000;display:none;overflow:hidden;max-height:70vh;flex-direction:column;}
     .np.show{display:flex;}
