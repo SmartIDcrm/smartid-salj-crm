@@ -533,6 +533,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="sbi active" data-tab="dashboard"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="5" height="6" rx="1"/><rect x="9" y="2" width="5" height="3" rx="1"/><rect x="2" y="10" width="5" height="4" rx="1"/><rect x="9" y="7" width="5" height="7" rx="1"/></svg><span>Dashboard</span></button>
       <button class="sbi coach-only" data-tab="dagligt"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="12" height="11" rx="1"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="5" y1="2" x2="5" y2="4"/><line x1="11" y1="2" x2="11" y2="4"/></svg><span>Daglig rapport</span></button>
       <button class="sbi" data-tab="historik"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10,9"/></svg><span>Historik</span></button>
+      <button class="sbi" data-tab="minstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 14h12"/><rect x="3" y="9" width="2" height="5"/><rect x="7" y="6" width="2" height="8"/><rect x="11" y="3" width="2" height="11"/></svg><span>Min statistik</span></button>
       <button class="sbi" data-tab="provision"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h10v10H3z"/><path d="M6 6l2 2 2-2M6 9l2 2 2-2"/></svg><span>Provision</span></button>
       <div class="sb-sec">Utbildning</div>
       <button class="sbi" data-tab="produktutbildning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12v9H2z"/><path d="M5 7h6M5 10h4"/></svg><span>Produktutbildning</span></button>
@@ -1034,11 +1035,12 @@ function render(){
   else if(S.tab==='produktutbildning')renderTraining(main,'prod');
   else if(S.tab==='saljutbildning')renderTraining(main,'salj');
   else if(S.tab==='manus')renderManus(main);
+  else if(S.tab==='minstats')renderMinStatistik(main);
   else if(S.tab==='ljudfiler')renderLjudfiler(main);
   else if(S.tab==='coachning')renderCoachning(main);
   else if(S.tab==='samtalsanalys')renderSamtalsanalys(main);
   else if(S.tab==='teamstats')renderTeamStats(main);
-  else if(S.tab==='mal')renderMal(main);
+  else if(S.tab==='mal')renderMalV2(main);
   else if(S.tab==='kalender')renderKalender(main);
   else renderPlaceholder(main,S.tab);
 }
@@ -4052,6 +4054,16 @@ function renderSamtalsanalys(main){
         <button class="btn-s" id="sa-clear">Rensa</button>
       </div>
 
+      <div class="sec" style="margin-bottom:1rem;">
+        <div class="sec-hdr"><h3>📊 Analysera idag</h3><span style="font-size:11px;color:var(--mu);">AI sammanställer dagens samtal</span></div>
+        <div class="sec-body" style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:flex-end;">
+          <div class="sa-flt"><label>Scope</label><select id="ad-scope"><option value="">Hela laget</option>${(S.allSellers||[]).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
+          <div class="sa-flt"><label>Datum</label><input type="date" id="ad-date" value="${new Date().toISOString().slice(0,10)}"></div>
+          <button class="btn btn-p" id="ad-go">Analysera</button>
+        </div>
+        <div id="ad-result" style="margin-top:1rem;"></div>
+      </div>
+
       <div id="sa-stats" class="sa-stats"></div>
       <div id="sa-results"><div class="empty"><p>Laddar samtal…</p></div></div>
     </div>`;
@@ -4074,6 +4086,40 @@ function wireSa(main){
     renderSamtalsanalys(main);
   };
   main.querySelector('#sa-q').addEventListener('keydown',e=>{if(e.key==='Enter')main.querySelector('#sa-go').click();});
+  // Analysera idag
+  const adGo=main.querySelector('#ad-go');
+  if(adGo)adGo.onclick=async()=>{
+    const scope=main.querySelector('#ad-scope').value||null;
+    const date=main.querySelector('#ad-date').value;
+    const out=main.querySelector('#ad-result');
+    out.innerHTML='<div class="empty"><p>AI analyserar dagens samtal…</p></div>';
+    try{
+      const resp=await fetch('https://hfbhoufqvozbxkqlldzl.supabase.co/functions/v1/analyze-day',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({date,seller_id:scope})
+      });
+      const d=await resp.json();
+      if(!d.ok){out.innerHTML=`<div class="notice warn">Fel: ${esc(d.error||'okänd')}</div>`;return;}
+      if(d.calls_analyzed===0){out.innerHTML=`<div class="empty"><p>Inga analyserade samtal för datumet</p></div>`;return;}
+      out.innerHTML=`
+        <div class="notice" style="background:var(--bg2);border:1px solid var(--br);border-left:3px solid var(--g);">
+          <strong>${esc(d.scope||'')}</strong> · ${d.calls_analyzed} samtal · ${esc(d.date||'')}<br>
+          ${esc(d.summary||'')}
+          ${d.key_metrics?'<br><small style="color:var(--mu);">Ja: '+d.key_metrics.sj+' · Nej: '+d.key_metrics.nej+' · Callback: '+d.key_metrics.callback+' · Q-snitt: '+(d.key_metrics.quality_avg||0).toFixed(2)+'</small>':''}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem;">
+          <div class="sec"><div class="sec-hdr"><h3>✅ Påverkade positivt</h3></div><div class="sec-body">
+            ${(d.positives||[]).map(p=>`<div class="sa-highlight"><strong>${esc(p.title||'')}</strong><div style="font-size:12.5px;margin-top:4px;">${esc(p.detail||'')}</div>${p.evidence_cdr?'<div class="sa-tip-q">cdr '+esc(p.evidence_cdr)+'</div>':''}</div>`).join('')||'<p style="color:var(--mu);">(inget)</p>'}
+          </div></div>
+          <div class="sec"><div class="sec-hdr"><h3>⚠ Påverkade negativt</h3></div><div class="sec-body">
+            ${(d.negatives||[]).map(p=>`<div class="sa-tip"><strong>${esc(p.title||'')}</strong><div style="font-size:12.5px;margin-top:4px;">${esc(p.detail||'')}</div>${p.evidence_cdr?'<div class="sa-tip-q">cdr '+esc(p.evidence_cdr)+'</div>':''}</div>`).join('')||'<p style="color:var(--mu);">(inget)</p>'}
+          </div></div>
+        </div>
+        <div class="sec" style="margin-top:1rem;"><div class="sec-hdr"><h3>💡 Förslag för imorgon</h3></div><div class="sec-body">
+          ${(d.suggestions||[]).map(s=>`<div class="sa-tip"><div class="sa-tip-n">Prio ${s.priority||'-'}</div><div class="sa-tip-b">${esc(s.tip||'')}</div></div>`).join('')||'<p style="color:var(--mu);">(inget)</p>'}
+        </div></div>`;
+    }catch(e){out.innerHTML=`<div class="notice warn">Nätverksfel: ${esc(e.message)}</div>`;}
+  };
 }
 
 async function loadSaResults(main){
@@ -4337,6 +4383,178 @@ function saRenderHighlightsWithFb(hl,recordingId){
     ${h.text?'<div class="sa-tip-q">"'+esc(h.text)+'"</div>':''}
     ${saFbWidget(recordingId,'highlight',i)}
   </div>`).join('');
+}
+
+/* ============================================================
+   MÅL & STREAK V2 — personliga månadsmål + AI-nedbrytning
+   ============================================================ */
+function workdaysInMonth(y,m){
+  const last=new Date(y,m+1,0).getDate();
+  let n=0;for(let d=1;d<=last;d++){const wd=new Date(y,m,d).getDay();if(wd!==0&&wd!==6)n++;}return n;
+}
+function workdaysSoFar(y,m){
+  const today=new Date();const limit=today.getFullYear()===y&&today.getMonth()===m?today.getDate():new Date(y,m+1,0).getDate();
+  let n=0;for(let d=1;d<=limit;d++){const wd=new Date(y,m,d).getDay();if(wd!==0&&wd!==6)n++;}return n;
+}
+
+async function renderMalV2(main){
+  const isCoach=S.role==='coach'||S.role==='admin'||S.role==='kundtjanst';
+  const sellerId=isCoach?(S.malSeller||(S.allSellers||[])[0]?.id):(S.seller&&S.seller.id);
+  if(!sellerId){main.innerHTML=`<div class="ph"><div><div class="ph-t">🎯 Mål & Streak</div></div></div><div class="ca"><div class="empty"><p>Ingen säljare</p></div></div>`;return;}
+
+  const today=new Date();const y=today.getFullYear(),m=today.getMonth();
+  const ym=`${y}-${String(m+1).padStart(2,'0')}`;
+  const arbTotal=workdaysInMonth(y,m), arbSoFar=workdaysSoFar(y,m);
+
+  // Ladda nuvarande mål
+  let goal={};
+  try{const {data}=await sb.from('salj_goals').select('*').eq('seller_id',sellerId).eq('ym',ym).maybeSingle();goal=data||{};}catch(e){}
+
+  // Aktuellt utfall
+  const days=(S.dailyStats||[]).filter(d=>d.seller_id===sellerId&&String(d.date).slice(0,7)===ym);
+  const tot=(f)=>days.reduce((a,d)=>a+(d[f]||0),0);
+  const cur={singel:tot('sold_s189'),par:tot('sold_s229'),familj:tot('sold_s279'),addon_s:tot('sold_a49'),addon_p:tot('sold_a79'),addon_f:tot('sold_a99')};
+
+  const targets=[
+    {key:'mal_singel',label:'Singel (189 kr)',cur:cur.singel,icon:'👤'},
+    {key:'mal_par',label:'Par (229 kr)',cur:cur.par,icon:'👥'},
+    {key:'mal_familj',label:'Familj (279 kr)',cur:cur.familj,icon:'👨‍👩‍👧'},
+    {key:'mal_addon_s',label:'Tillägg Singel (49)',cur:cur.addon_s,icon:'➕'},
+    {key:'mal_addon_p',label:'Tillägg Par (79)',cur:cur.addon_p,icon:'➕'},
+    {key:'mal_addon_f',label:'Tillägg Familj (99)',cur:cur.addon_f,icon:'➕'},
+  ];
+  const sellerName=isCoach?((S.allSellers||[]).find(s=>s.id===sellerId)||{}).name||'?':(S.seller&&S.seller.name)||'';
+
+  let html=`
+    <div class="ph">
+      <div><div class="ph-t">🎯 ${esc(sellerName)} — Mål ${ym}</div><div class="ph-s">${arbSoFar}/${arbTotal} arbetsdagar i månaden gångna</div></div>
+      ${isCoach?`<select id="mal-pick" style="padding:7px 12px;border:1px solid var(--br);border-radius:7px;">${(S.allSellers||[]).map(s=>`<option value="${s.id}"${s.id===sellerId?' selected':''}>${esc(s.name)}</option>`).join('')}</select>`:''}
+    </div>
+    <div class="ca">
+      <div class="notice" style="background:var(--bluel);border-left:3px solid var(--blue);">
+        💡 Sätt dina mål för månaden. Vi bryter automatiskt ner till vecko- och dagsmål baserat på ${arbTotal} arbetsdagar denna månad.
+      </div>
+      <div class="sec">
+        <div class="sec-hdr"><h3>Dina månadsmål</h3><button class="btn btn-p" id="mal-save">💾 Spara mål</button></div>
+        <div class="sec-body">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:var(--bg2);">
+              <th style="text-align:left;padding:9px;">Paket</th>
+              <th style="text-align:center;padding:9px;width:110px;">Månadsmål</th>
+              <th style="text-align:center;padding:9px;">Veckomål</th>
+              <th style="text-align:center;padding:9px;">Dagsmål</th>
+              <th style="text-align:center;padding:9px;">Aktuellt</th>
+              <th style="text-align:center;padding:9px;">Status</th>
+            </tr></thead><tbody>
+              ${targets.map(t=>{
+                const malV=goal[t.key]||0;
+                const dagsmal=arbTotal?Math.ceil(malV/arbTotal):0;
+                const veckomal=dagsmal*5;
+                const forvSoFar=dagsmal*arbSoFar;
+                const diff=t.cur-forvSoFar;
+                const status=malV===0?'<span style="color:var(--mu);">–</span>':diff>=0?`<span class="sa-badge sa-b-ja">+${diff}</span>`:`<span class="sa-badge sa-b-nej">${diff}</span>`;
+                return `<tr>
+                  <td style="padding:9px;border-bottom:1px solid var(--bg2);">${t.icon} ${esc(t.label)}</td>
+                  <td style="padding:9px;border-bottom:1px solid var(--bg2);text-align:center;"><input type="number" min="0" data-key="${t.key}" value="${malV}" class="mal-in" style="width:80px;padding:5px;text-align:center;border:1px solid var(--br);border-radius:5px;"></td>
+                  <td style="padding:9px;border-bottom:1px solid var(--bg2);text-align:center;font-weight:600;color:var(--gd);">${veckomal}</td>
+                  <td style="padding:9px;border-bottom:1px solid var(--bg2);text-align:center;font-weight:600;color:var(--gd);">${dagsmal}</td>
+                  <td style="padding:9px;border-bottom:1px solid var(--bg2);text-align:center;font-weight:600;">${t.cur}</td>
+                  <td style="padding:9px;border-bottom:1px solid var(--bg2);text-align:center;">${status}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+          <p style="font-size:11.5px;color:var(--mu);margin-top:.8rem;">💡 Status = aktuellt − förväntat. Grönt = över schema, rött = efter.</p>
+        </div>
+      </div>
+    </div>`;
+  main.innerHTML=html;
+  const pick=main.querySelector('#mal-pick');if(pick)pick.onchange=()=>{S.malSeller=pick.value;renderMalV2(main);};
+  // Live-uppdatera nedbrytning vid input-ändring
+  main.querySelectorAll('.mal-in').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const row=inp.closest('tr');const v=Number(inp.value||0);
+      const dgs=arbTotal?Math.ceil(v/arbTotal):0, vk=dgs*5;
+      row.children[2].textContent=vk;row.children[3].textContent=dgs;
+    });
+  });
+  main.querySelector('#mal-save').onclick=async()=>{
+    const payload={seller_id:sellerId,ym:ym,updated_at:new Date().toISOString()};
+    main.querySelectorAll('.mal-in').forEach(inp=>{payload[inp.dataset.key]=Number(inp.value||0);});
+    try{
+      const {error}=await sb.from('salj_goals').upsert(payload,{onConflict:'seller_id,ym'});
+      if(error)throw error;
+      const btn=main.querySelector('#mal-save');btn.textContent='✓ Sparat';
+      setTimeout(()=>{btn.textContent='💾 Spara mål';renderMalV2(main);},1500);
+    }catch(e){alert('Fel: '+e.message);}
+  };
+}
+
+/* ============================================================
+   MIN STATISTIK — säljarens egen data + sälj-projektion
+   ============================================================ */
+function renderMinStatistik(main){
+  const isCoach=S.role==='coach'||S.role==='admin'||S.role==='kundtjanst';
+  const sellerId=isCoach?(S.statsSeller||(S.allSellers||[])[0]?.id):(S.seller&&S.seller.id);
+  if(!sellerId){
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">📊 Min statistik</div></div></div><div class="ca"><div class="empty"><p>Ingen säljare kopplad</p></div></div>`;
+    return;
+  }
+  const days=(S.dailyStats||[]).filter(d=>d.seller_id===sellerId);
+  const today=new Date();
+  const ym=today.toISOString().slice(0,7);
+  const monthDays=days.filter(d=>String(d.date).slice(0,7)===ym);
+  const tot=(f)=>monthDays.reduce((a,d)=>a+(d[f]||0),0);
+  const totSamtal=tot('samtal');
+  const totSingel=tot('sold_s189'), totPar=tot('sold_s229'), totFamilj=tot('sold_s279');
+  const totAdS=tot('sold_a49'), totAdP=tot('sold_a79'), totAdF=tot('sold_a99');
+  const totSalj=totSingel+totPar+totFamilj;
+  const totAddon=totAdS+totAdP+totAdF;
+  const arbDgr=monthDays.length;
+  const snitt=arbDgr?totSalj/arbDgr:0;
+  // Projektion: räkna ut arbetsdagar kvar i månaden (mån-fre)
+  const last=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  let kvarArb=0;
+  for(let d=today.getDate()+1;d<=last;d++){
+    const dt=new Date(today.getFullYear(),today.getMonth(),d).getDay();
+    if(dt!==0&&dt!==6)kvarArb++;
+  }
+  const projection=Math.round(totSalj+snitt*kvarArb);
+  const sellerName=isCoach?((S.allSellers||[]).find(s=>s.id===sellerId)||{}).name||'?':(S.seller&&S.seller.name)||'';
+
+  let html=`
+    <div class="ph">
+      <div><div class="ph-t">📊 ${esc(sellerName)} — Min statistik</div><div class="ph-s">Hela din månad i siffror + projektion</div></div>
+      ${isCoach?`<select id="ms-pick" style="padding:7px 12px;border:1px solid var(--br);border-radius:7px;">${(S.allSellers||[]).map(s=>`<option value="${s.id}"${s.id===sellerId?' selected':''}>${esc(s.name)}</option>`).join('')}</select>`:''}
+    </div>
+    <div class="ca">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-ic green">📞</div><div class="kpi-l">Samtal</div><div class="kpi-v">${totSamtal}</div><div class="kpi-sub">snitt ${arbDgr?Math.round(totSamtal/arbDgr):0}/dag</div></div>
+        <div class="kpi"><div class="kpi-ic gold">💰</div><div class="kpi-l">Sälj denna månad</div><div class="kpi-v">${totSalj}</div><div class="kpi-sub">${totSingel} S · ${totPar} P · ${totFamilj} F</div></div>
+        <div class="kpi"><div class="kpi-ic blue">➕</div><div class="kpi-l">Tilläggstjänster</div><div class="kpi-v">${totAddon}</div><div class="kpi-sub">${totAdS}/${totAdP}/${totAdF}</div></div>
+        <div class="kpi"><div class="kpi-ic purple">📈</div><div class="kpi-l">Snitt sälj/dag</div><div class="kpi-v">${snitt.toFixed(1)}</div><div class="kpi-sub">över ${arbDgr} arbetsdagar</div></div>
+        <div class="kpi"><div class="kpi-ic orange">🔮</div><div class="kpi-l">Projektion månaden ut</div><div class="kpi-v">${projection}</div><div class="kpi-sub">vid samma takt (${kvarArb} dgr kvar)</div></div>
+      </div>
+      <div class="sec">
+        <div class="sec-hdr"><h3>Sälj per paket denna månad</h3></div>
+        <div class="sec-body">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:var(--bg2);"><th style="text-align:left;padding:8px;">Paket</th><th style="text-align:right;padding:8px;">Sålda</th><th style="text-align:right;padding:8px;">Ångrade</th><th style="text-align:right;padding:8px;">Netto</th></tr></thead>
+            <tbody>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--bg2);">Singel (189 kr)</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${totSingel}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${tot('ang_s189')}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);font-weight:600;">${totSingel-tot('ang_s189')}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--bg2);">Par (229 kr)</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${totPar}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${tot('ang_s229')}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);font-weight:600;">${totPar-tot('ang_s229')}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--bg2);">Familj (279 kr)</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${totFamilj}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${tot('ang_s279')}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);font-weight:600;">${totFamilj-tot('ang_s279')}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--bg2);">Tillägg Singel (49)</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${totAdS}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${tot('ang_a49')}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);font-weight:600;">${totAdS-tot('ang_a49')}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--bg2);">Tillägg Par (79)</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${totAdP}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);">${tot('ang_a79')}</td><td style="text-align:right;padding:8px;border-bottom:1px solid var(--bg2);font-weight:600;">${totAdP-tot('ang_a79')}</td></tr>
+              <tr><td style="padding:8px;">Tillägg Familj (99)</td><td style="text-align:right;padding:8px;">${totAdF}</td><td style="text-align:right;padding:8px;">${tot('ang_a99')}</td><td style="text-align:right;padding:8px;font-weight:600;">${totAdF-tot('ang_a99')}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  main.innerHTML=html;
+  const pick=main.querySelector('#ms-pick');
+  if(pick)pick.onchange=()=>{S.statsSeller=pick.value;renderMinStatistik(main);};
 }
 
 /* ============================================================
