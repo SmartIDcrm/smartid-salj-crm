@@ -1023,6 +1023,50 @@ function paintSidebar(){
   if(kalBtn&&!coachHasCalendar())kalBtn.style.display='none';
   /* AI-chatbot — initiera när användaren är inloggad */
   if(typeof chatInit==='function')chatInit();
+  /* Notiser/badges på sidebar-knappar */
+  if(typeof updateSidebarBadges==='function')updateSidebarBadges();
+}
+
+async function updateSidebarBadges(){
+  const isCoach=S.role==='coach'||S.role==='admin'||S.role==='kundtjanst';
+  if(!isCoach)return;
+  const todayStart=new Date();todayStart.setHours(0,0,0,0);
+  const todayISO=todayStart.toISOString();
+  try{
+    // Nya analyser idag + high regret
+    const {data}=await sb.from('call_recordings')
+      .select('id,analyzed,recorded_at')
+      .gte('recorded_at',todayISO);
+    const analyzedToday=(data||[]).filter(r=>r.analyzed).length;
+    const {data:hr}=await sb.from('call_analysis')
+      .select('regret_risk,processed_at')
+      .gte('processed_at',todayISO)
+      .eq('regret_risk','high');
+    const highRegret=(hr||[]).length;
+
+    const saBtn=document.querySelector('.sbi[data-tab="samtalsanalys"]');
+    if(saBtn){
+      saBtn.querySelectorAll('.sb-badge').forEach(b=>b.remove());
+      if(analyzedToday){
+        const b=document.createElement('span');b.className='sb-badge';
+        b.style.cssText='margin-left:auto;font-size:10px;background:'+(highRegret?'var(--err)':'var(--g)')+';color:#fff;padding:2px 7px;border-radius:9px;font-weight:700;';
+        b.textContent=analyzedToday+(highRegret?' ⚠':'');
+        b.title=`${analyzedToday} nya analyser idag${highRegret?', '+highRegret+' med hög ångerrisk':''}`;
+        saBtn.appendChild(b);
+      }
+    }
+    // Bibliotek-badge: nya invändningar idag
+    const {data:obj}=await sb.rpc('objection_library',{filter_from:todayStart.toISOString().slice(0,10),filter_to:todayStart.toISOString().slice(0,10),page_limit:200});
+    const bibBtn=document.querySelector('.sbi[data-tab="bibliotek"]');
+    if(bibBtn&&obj?.length){
+      bibBtn.querySelectorAll('.sb-badge').forEach(b=>b.remove());
+      const b=document.createElement('span');b.className='sb-badge';
+      b.style.cssText='margin-left:auto;font-size:10px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:9px;font-weight:700;';
+      b.textContent='+'+obj.length;
+      b.title=`${obj.length} nya invändningar identifierade idag`;
+      bibBtn.appendChild(b);
+    }
+  }catch(e){console.error('badges',e);}
 }
 
 function render(){
@@ -4745,7 +4789,7 @@ async function renderMalV2(main){
 /* ============================================================
    MIN STATISTIK — säljarens egen data + sälj-projektion
    ============================================================ */
-function renderMinStatistik(main){
+async function renderMinStatistik(main){
   const isCoach=S.role==='coach'||S.role==='admin'||S.role==='kundtjanst';
   const sellerId=isCoach?(S.statsSeller||(S.allSellers||[])[0]?.id):(S.seller&&S.seller.id);
   if(!sellerId){
@@ -4807,6 +4851,79 @@ function renderMinStatistik(main){
   main.innerHTML=html;
   const pick=main.querySelector('#ms-pick');
   if(pick)pick.onchange=()=>{S.statsSeller=pick.value;renderMinStatistik(main);};
+  // Lägg till trend-sektion async
+  await loadAndRenderTrend(main, sellerId);
+}
+
+async function loadAndRenderTrend(main, sellerId){
+  const since=new Date();since.setDate(since.getDate()-30);
+  const sinceStr=since.toISOString().slice(0,10);
+  let trends=[];
+  try{
+    const {data}=await sb.from('v_seller_quality_trend')
+      .select('dag,antal,ja,nej,avg_quality,avg_compliance')
+      .eq('seller_id',sellerId).gte('dag',sinceStr).order('dag',{ascending:true});
+    trends=data||[];
+  }catch(e){console.error('trend',e);}
+  if(!trends.length){
+    main.querySelector('.ca').insertAdjacentHTML('beforeend',
+      '<div class="sec" style="margin-top:1rem;"><div class="sec-hdr"><h3>📈 30-dagars trend</h3></div><div class="sec-body"><div class="empty"><p>Ingen analyserad data senaste 30 dgr</p></div></div></div>');
+    return;
+  }
+  // Bygg SVG line chart
+  const w=860,h=240,pad={l:40,r:20,t:20,b:40};
+  const cw=w-pad.l-pad.r,ch=h-pad.t-pad.b;
+  const days=trends.length;
+  const xStep=days>1?cw/(days-1):0;
+  const yScale=v=>ch-(Math.max(0,Math.min(1,v||0)))*ch;
+  const qPoints=trends.map((t,i)=>`${pad.l+i*xStep},${pad.t+yScale(t.avg_quality)}`).join(' ');
+  const cPoints=trends.map((t,i)=>`${pad.l+i*xStep},${pad.t+yScale(t.avg_compliance)}`).join(' ');
+  const maxAnt=Math.max(1,...trends.map(t=>t.antal));
+  const bars=trends.map((t,i)=>{
+    const x=pad.l+i*xStep-(xStep*0.4)/2;
+    const bw=Math.max(2,xStep*0.4);
+    const bh=(t.ja/maxAnt)*ch;
+    return `<rect x="${x}" y="${pad.t+ch-bh}" width="${bw}" height="${bh}" fill="rgba(200,168,75,.35)"/>`;
+  }).join('');
+  const xLabels=trends.filter((_,i)=>i%Math.max(1,Math.floor(days/8))===0||i===days-1)
+    .map((t,j,arr)=>{
+      const origIdx=trends.indexOf(t);
+      const x=pad.l+origIdx*xStep;
+      return `<text x="${x}" y="${h-15}" font-size="10" fill="#557A6A" text-anchor="middle">${t.dag.slice(5)}</text>`;
+    }).join('');
+  const yLabels=[0,0.25,0.5,0.75,1].map(v=>
+    `<text x="${pad.l-6}" y="${pad.t+yScale(v)+3}" font-size="10" fill="#557A6A" text-anchor="end">${v}</text>
+     <line x1="${pad.l}" y1="${pad.t+yScale(v)}" x2="${pad.l+cw}" y2="${pad.t+yScale(v)}" stroke="#EBF2EF" stroke-width="1"/>`
+  ).join('');
+  // Sammanställning sista veckan vs föregående
+  const last7=trends.slice(-7),prev7=trends.slice(-14,-7);
+  const avg=(arr,f)=>arr.length?arr.reduce((a,r)=>a+Number(r[f]||0),0)/arr.length:0;
+  const qLast=avg(last7,'avg_quality'),qPrev=avg(prev7,'avg_quality');
+  const cLast=avg(last7,'avg_compliance'),cPrev=avg(prev7,'avg_compliance');
+  const jaSumLast=last7.reduce((a,r)=>a+(r.ja||0),0),jaSumPrev=prev7.reduce((a,r)=>a+(r.ja||0),0);
+  const arrow=(now,prev)=>{const d=now-prev;if(Math.abs(d)<0.01)return '<span style="color:var(--mu);">−</span>';return d>0?'<span style="color:var(--g);">▲ +'+d.toFixed(2)+'</span>':'<span style="color:var(--err);">▼ '+d.toFixed(2)+'</span>';};
+  const arrowN=(now,prev)=>{const d=now-prev;if(d===0)return '<span style="color:var(--mu);">−</span>';return d>0?'<span style="color:var(--g);">▲ +'+d+'</span>':'<span style="color:var(--err);">▼ '+d+'</span>';};
+
+  const html=`
+    <div class="sec" style="margin-top:1rem;">
+      <div class="sec-hdr"><h3>📈 30-dagars trend</h3><span style="font-size:11px;color:var(--mu);">Quality (grön) · Compliance (blå) · Ja-sälj per dag (gula staplar)</span></div>
+      <div class="sec-body">
+        <div class="kpi-grid" style="margin-bottom:1rem;">
+          <div class="kpi"><div class="kpi-l">Snitt-quality (senaste 7d)</div><div class="kpi-v">${qLast.toFixed(2)}</div><div class="kpi-sub">${arrow(qLast,qPrev)} vs föreg. vecka</div></div>
+          <div class="kpi"><div class="kpi-l">Snitt-compliance</div><div class="kpi-v">${cLast.toFixed(2)}</div><div class="kpi-sub">${arrow(cLast,cPrev)} vs föreg.</div></div>
+          <div class="kpi"><div class="kpi-l">Ja-sälj (senaste 7d)</div><div class="kpi-v">${jaSumLast}</div><div class="kpi-sub">${arrowN(jaSumLast,jaSumPrev)} vs föreg.</div></div>
+        </div>
+        <svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:100%;background:var(--w);">
+          ${yLabels}
+          ${bars}
+          <polyline points="${cPoints}" fill="none" stroke="#3B7DD8" stroke-width="2" stroke-dasharray="4,3"/>
+          <polyline points="${qPoints}" fill="none" stroke="#1E5C4E" stroke-width="2.5"/>
+          ${trends.map((t,i)=>`<circle cx="${pad.l+i*xStep}" cy="${pad.t+yScale(t.avg_quality)}" r="3" fill="#1E5C4E"><title>${t.dag}: q=${t.avg_quality} c=${t.avg_compliance} ja=${t.ja} nej=${t.nej}</title></circle>`).join('')}
+          ${xLabels}
+        </svg>
+      </div>
+    </div>`;
+  main.querySelector('.ca').insertAdjacentHTML('beforeend',html);
 }
 
 /* ============================================================
