@@ -587,8 +587,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="sbi coach-only" data-tab="bibliotek"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="3" height="11" rx="1"/><rect x="6" y="3" width="3" height="11" rx="1"/><rect x="10" y="3" width="3" height="11" rx="1"/><line x1="3" y1="6" x2="4" y2="6"/><line x1="7" y1="6" x2="8" y2="6"/><line x1="11" y1="6" x2="12" y2="6"/></svg><span>Bibliotek</span></button>
       <button class="sbi coach-only" data-tab="kunskapsbas"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 2h7l3 3v9H3z"/><path d="M10 2v3h3"/><circle cx="6" cy="9" r="1"/><circle cx="6" cy="11.5" r="1"/><line x1="8" y1="9" x2="11" y2="9"/><line x1="8" y1="11.5" x2="11" y2="11.5"/></svg><span>Kunskapsbas</span></button>
       <div class="sb-sec">Verktyg</div>
-      <button class="sbi" data-tab="mal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg><span>Mål &amp; Streak</span></button>
-      <button class="sbi" data-tab="tavlingar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2h6v3a3 3 0 0 1-6 0z"/><path d="M5 3H3v1a2 2 0 0 0 2 2"/><path d="M11 3h2v1a2 2 0 0 1-2 2"/><line x1="8" y1="8" x2="8" y2="11"/><path d="M5.5 14h5l-.5-3h-4z"/></svg><span>Tävlingar</span></button>
+      <button class="sbi" data-tab="mal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg><span>Mål och tävlingar</span></button>
       <div class="sb-sec coach-only">Coach-verktyg</div>
       <button class="sbi coach-only" data-tab="team"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.5"/><circle cx="11" cy="6" r="2.5"/><path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><path d="M7 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg><span>Lägg till säljare</span></button>
       <button class="sbi coach-only" data-tab="teamstats"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 14h12"/><rect x="3" y="8" width="2" height="6"/><rect x="7" y="5" width="2" height="9"/><rect x="11" y="2" width="2" height="12"/></svg><span>Statistik säljare</span></button>
@@ -1107,7 +1106,7 @@ function initSidebarGroups(){
 const TAB_TITLES={dashboard:'Dashboard',dagligt:'Daglig rapport',historik:'Historik',minstats:'Min statistik',
   provision:'Provision',produktutbildning:'Produktutbildning',saljutbildning:'Säljutbildning',
   manus:'Manus',ljudfiler:'Ljudbibliotek',coachning:'Coachning',samtalsanalys:'Samtalsanalys',
-  bibliotek:'Bibliotek',kunskapsbas:'Kunskapsbas',mal:'Mål & Streak',tavlingar:'Tävlingar',
+  bibliotek:'Bibliotek',kunskapsbas:'Kunskapsbas',mal:'Mål och tävlingar',
   team:'Lägg till säljare',teamstats:'Statistik säljare',allstats:'All statistik',kalender:'Kalender'};
 
 function updateThemeLabel(){const lbl=document.getElementById('pm-theme-label');if(!lbl)return;lbl.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'Ljust tema':'Mörkt tema';}
@@ -1223,7 +1222,15 @@ function initV3Skal(){
   document.addEventListener('keydown',(e)=>{
     const inField=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
     if(e.key==='Escape'){pm.classList.remove('show');if(np)np.classList.remove('show');cpBack.classList.remove('show');mlBack.classList.remove('show');}
-    if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette();}
+    if((e.ctrlKey||e.metaKey)&&e.key==='k'){
+      e.preventDefault();
+      // Smart Ctrl+K: om vi är på Samtalsanalys, fokusera dess sökruta direkt
+      if(S.tab==='samtalsanalys'&&!S.sa?.openId){
+        const saQ=document.getElementById('sa-q');
+        if(saQ){saQ.focus();saQ.select();return;}
+      }
+      openCommandPalette();
+    }
     if((e.ctrlKey||e.metaKey)&&e.key==='/'){e.preventDefault();tb.querySelector('#tb-q').focus();}
     if(inField)return;
     // J/K nav i Samtalsanalys-tabell
@@ -1327,10 +1334,10 @@ function openCommandPalette(){
         sellers.forEach(s=>items.push({type:'seller',key:s.id,label:s.name,sub:'Min statistik',icon:'👤'}));
       }
     }
-    // Samtal-sök
+    // Transkript-sök sker INTE här längre — använd Samtalsanalys-sökrutan direkt
     if(q&&q.length>=3&&(S.role==='coach'||S.role==='admin')){
-      items.push({section:'Sökning i transkript'});
-      items.push({type:'search-call',key:q,label:`Sök "${q}" i alla samtal`,sub:'Samtalsanalys',icon:'🎙'});
+      items.push({section:'Snabbsök'});
+      items.push({type:'go-search-call',key:q,label:`Sök "${q}" i Samtalsanalys`,sub:'Hoppa dit',icon:'🎙'});
     }
     if(!items.length){
       list.innerHTML='<div class="empty" style="padding:1.5rem;"><p style="font-size:13px;">Inga matchningar</p></div>';
@@ -1372,12 +1379,14 @@ function execCpItem(it){
     document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));
     document.querySelector('.sbi[data-tab="minstats"]')?.classList.add('active');
     render();
-  }else if(it.type==='search-call'){
+  }else if(it.type==='go-search-call'){
     if(!S.sa)S.sa={};S.sa.query=it.key;S.sa.openId=null;
     S.tab='samtalsanalys';
     document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));
     document.querySelector('.sbi[data-tab="samtalsanalys"]')?.classList.add('active');
     render();
+    // Fokusera Samtalsanalys-sökrutan
+    setTimeout(()=>{document.getElementById('sa-q')?.focus();},150);
   }
 }
 
@@ -5620,10 +5629,15 @@ function wireFeedback(main){
 let chatState={open:false,sessionId:null,history:[]};
 
 function chatInit(){
+  const isCoach=S.role==='coach'||S.role==='admin'||S.role==='kundtjanst';
+  // AI-coach BARA för coach/admin — säljare väntar (regel 2026-05-22)
+  if(!isCoach){
+    document.getElementById('ai-bubble')?.remove();
+    document.getElementById('ai-panel')?.remove();
+    return;
+  }
   if(document.getElementById('ai-bubble'))return;
-  // Säljare ser ej bubblan i v0.1 — koppla på senare
   const role=S.role||'saljare';
-  // (vi visar för båda nu — men prompten anpassas)
   const bubble=document.createElement('button');
   bubble.id='ai-bubble';
   bubble.title=role==='coach'?'Coach-AI':'Sälj-AI';
