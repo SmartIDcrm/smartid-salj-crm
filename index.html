@@ -537,6 +537,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="sb-sec">Utbildning</div>
       <button class="sbi" data-tab="produktutbildning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12v9H2z"/><path d="M5 7h6M5 10h4"/></svg><span>Produktutbildning</span></button>
       <button class="sbi" data-tab="saljutbildning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l4-4 3 3 4-4"/><circle cx="13" cy="3" r="1.5"/></svg><span>Säljutbildning</span></button>
+      <button class="sbi" data-tab="manus"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 2h8l2 2v10H3z"/><path d="M11 2v3h2"/><line x1="5" y1="7" x2="11" y2="7"/><line x1="5" y1="10" x2="11" y2="10"/><line x1="5" y1="13" x2="9" y2="13"/></svg><span>Manus</span></button>
       <button class="sbi" data-tab="ljudfiler"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v12"/><path d="M5 5v6"/><path d="M11 5v6"/><path d="M2 7v2"/><path d="M14 7v2"/></svg><span>Ljudfiler</span></button>
       <button class="sbi" data-tab="coachning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h12v8H6l-3 3z"/><path d="M5 6h6M5 8h4"/></svg><span>Coachning</span></button>
       <button class="sbi coach-only" data-tab="samtalsanalys"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a5 5 0 0 1 10 0"/><path d="M2 8v3a1 1 0 0 0 1 1h1V8"/><path d="M14 8v3a1 1 0 0 1-1 1h-1V8"/><circle cx="8" cy="13" r="1"/></svg><span>Samtalsanalys</span></button>
@@ -1032,6 +1033,7 @@ function render(){
   else if(S.tab==='team')renderSellers(main);
   else if(S.tab==='produktutbildning')renderTraining(main,'prod');
   else if(S.tab==='saljutbildning')renderTraining(main,'salj');
+  else if(S.tab==='manus')renderManus(main);
   else if(S.tab==='ljudfiler')renderLjudfiler(main);
   else if(S.tab==='coachning')renderCoachning(main);
   else if(S.tab==='samtalsanalys')renderSamtalsanalys(main);
@@ -3935,6 +3937,37 @@ function saInjectStyles(){
     .ai-quick{display:flex;flex-wrap:wrap;gap:5px;padding:0 .8rem .5rem;}
     .ai-quick-btn{font-size:11px;padding:3px 9px;background:var(--bg2);border:1px solid var(--br);border-radius:11px;cursor:pointer;color:var(--gd);}
     .ai-quick-btn:hover{background:var(--br);}
+    /* Manus-flik */
+    .mn-toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.2rem;padding:.7rem 1rem;background:var(--w);border:1px solid var(--br);border-radius:10px;}
+    .mn-tog{padding:7px 14px;background:var(--bg2);border:1px solid var(--br);border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--gd);}
+    .mn-tog.active{background:var(--g);color:#fff;border-color:var(--g);}
+    .mn-tog:hover:not(.active){background:var(--br);}
+    .mn-size{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:12px;color:var(--mu);}
+    .mn-size button{padding:4px 10px;border:1px solid var(--br);background:var(--w);border-radius:6px;cursor:pointer;font-size:12px;}
+    .mn-grid{display:grid;gap:1.2rem;}
+    .mn-grid.both{grid-template-columns:1fr 1fr;}
+    .mn-grid.single{grid-template-columns:1fr;}
+    @media (max-width:1100px){.mn-grid.both{grid-template-columns:1fr;}}
+    .mn-col{background:var(--w);border:1px solid var(--br);border-radius:14px;padding:1.5rem 1.7rem;line-height:1.65;}
+    .mn-col h1{font-size:22px;color:var(--gd);margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--bg2);}
+    .mn-col h2{font-size:18px;color:var(--g);margin:1.6rem 0 .6rem;}
+    .mn-col h3{font-size:15px;color:var(--gd);margin:1.2rem 0 .4rem;font-weight:700;}
+    .mn-col h4{font-size:13.5px;color:var(--gd);margin:1rem 0 .3rem;font-weight:700;}
+    .mn-col p{margin-bottom:.7rem;}
+    .mn-col ul,.mn-col ol{margin:.4rem 0 .9rem 1.3rem;}
+    .mn-col li{margin-bottom:.3rem;}
+    .mn-col blockquote{border-left:3px solid var(--gold);background:#FAF5E6;padding:.7rem 1rem;margin:.7rem 0;border-radius:0 6px 6px 0;font-style:italic;color:var(--gd);}
+    .mn-col blockquote p:last-child{margin-bottom:0;}
+    .mn-col strong{color:var(--gd);}
+    .mn-col code{background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:.92em;}
+    .mn-col table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.93em;}
+    .mn-col th,.mn-col td{border:1px solid var(--br);padding:6px 10px;text-align:left;}
+    .mn-col th{background:var(--bg2);font-weight:600;}
+    .mn-col hr{border:none;border-top:1px solid var(--br);margin:1.2rem 0;}
+    .mn-text-s .mn-col{font-size:13px;}
+    .mn-text-m .mn-col{font-size:15px;}
+    .mn-text-l .mn-col{font-size:17px;}
+    .mn-text-xl .mn-col{font-size:19px;line-height:1.75;}
   `;
   document.head.appendChild(st);
 }
@@ -4205,10 +4238,10 @@ async function renderSaDetail(main){
         <div class="sec-body">${saRenderPhases(d.phases)}</div></div>
 
       <div class="sec"><div class="sec-hdr"><h3>🏆 Bra moment</h3></div>
-        <div class="sec-body">${saRenderHighlights(d.highlight_moments)}</div></div>
+        <div class="sec-body">${saRenderHighlightsWithFb(d.highlight_moments,d.recording_id)}</div></div>
 
-      <div class="sec"><div class="sec-hdr"><h3>⚠ Coach-tips</h3></div>
-        <div class="sec-body">${saRenderTips(d.coach_tips)}</div></div>
+      <div class="sec"><div class="sec-hdr"><h3>⚠ Coach-tips</h3><span style="font-size:11px;color:var(--mu);">Tumme upp/ned + kommentar = AI lär sig</span></div>
+        <div class="sec-body">${saRenderTips(d.coach_tips,d.recording_id)}</div></div>
 
       <div class="sec"><div class="sec-hdr"><h3>Invändningar & frågor</h3></div>
         <div class="sec-body">${saRenderObjections(d.key_objections)}</div></div>
@@ -4286,9 +4319,93 @@ function saRenderHighlights(hl){
   return hl.map(h=>`<div class="sa-highlight"><div style="font-size:11px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">${esc(h.time_mmss||'')} · ${esc(h.category||'')}</div><div style="font-size:13px;line-height:1.55;">${esc(h.why_good||h.why||'')}</div>${h.text?'<div class="sa-tip-q">"'+esc(h.text)+'"</div>':''}</div>`).join('');
 }
 
-function saRenderTips(tips){
+function saRenderTips(tips,recordingId){
   if(!tips||!Array.isArray(tips)||!tips.length)return '<p style="color:var(--mu);">(inga tips identifierade)</p>';
-  return tips.map((t,i)=>`<div class="sa-tip"><div class="sa-tip-n">Tips ${i+1}${t.priority?' · prio '+t.priority:''}</div><div class="sa-tip-b">${esc(t.tip||'')}</div>${t.evidence_quote?'<div class="sa-tip-q">'+esc(t.evidence_time||'')+' "'+esc(t.evidence_quote)+'"</div>':''}</div>`).join('');
+  return tips.map((t,i)=>`<div class="sa-tip">
+    <div class="sa-tip-n">Tips ${i+1}${t.priority?' · prio '+t.priority:''}</div>
+    <div class="sa-tip-b">${esc(t.tip||'')}</div>
+    ${t.evidence_quote?'<div class="sa-tip-q">'+esc(t.evidence_time||'')+' "'+esc(t.evidence_quote)+'"</div>':''}
+    ${saFbWidget(recordingId,'coach_tip',i)}
+  </div>`).join('');
+}
+
+function saRenderHighlightsWithFb(hl,recordingId){
+  if(!hl||!Array.isArray(hl)||!hl.length)return '<p style="color:var(--mu);">(inga highlights identifierade)</p>';
+  return hl.map((h,i)=>`<div class="sa-highlight">
+    <div style="font-size:11px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">${esc(h.time_mmss||'')} · ${esc(h.category||'')}</div>
+    <div style="font-size:13px;line-height:1.55;">${esc(h.why_good||h.why||'')}</div>
+    ${h.text?'<div class="sa-tip-q">"'+esc(h.text)+'"</div>':''}
+    ${saFbWidget(recordingId,'highlight',i)}
+  </div>`).join('');
+}
+
+/* ============================================================
+   MANUS-FLIK — säljmanus + invändningshantering, valbar vy
+   ============================================================ */
+function mnInjectMarked(){
+  if(window.marked)return Promise.resolve();
+  return new Promise(res=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+    s.onload=res;document.head.appendChild(s);
+  });
+}
+
+async function renderManus(main){
+  saInjectStyles();
+  await mnInjectMarked();
+  if(!S.mn)S.mn={view:'both',size:'m',script:null};
+
+  // Hämta manuset från settings
+  if(!S.mn.script){
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">📖 Manus</div><div class="ph-s">Laddar…</div></div></div><div class="ca"><div class="empty"><p>Hämtar manus…</p></div></div>`;
+    try{
+      const {data}=await sb.from('saljcoach_settings').select('value').eq('key','sales_script_v1').maybeSingle();
+      S.mn.script=data&&data.value||'';
+    }catch(e){console.error(e);}
+  }
+
+  // Dela på # Invändningshantering
+  const txt=S.mn.script||'';
+  const splitIdx=txt.search(/^# Invändningshantering/m);
+  let manusPart='',invPart='';
+  if(splitIdx>0){
+    manusPart=txt.slice(0,splitIdx).trim();
+    invPart=txt.slice(splitIdx).trim();
+  }else{
+    manusPart=txt;
+  }
+
+  const view=S.mn.view;
+  const size=S.mn.size;
+
+  const renderMd=(md)=>window.marked?window.marked.parse(md):esc(md).replace(/\n/g,'<br>');
+
+  main.innerHTML=`
+    <div class="ph">
+      <div><div class="ph-t">📖 Manus & Invändningshantering</div><div class="ph-s">SmartIDs officiella säljmaterial</div></div>
+    </div>
+    <div class="ca mn-text-${size}">
+      <div class="mn-toolbar">
+        <button class="mn-tog ${view==='both'?'active':''}" data-view="both">📑 Båda</button>
+        <button class="mn-tog ${view==='manus'?'active':''}" data-view="manus">📘 Bara säljmanus</button>
+        <button class="mn-tog ${view==='inv'?'active':''}" data-view="inv">🛡️ Bara invändningar</button>
+        <div class="mn-size">
+          <span>Textstorlek:</span>
+          <button data-size="s">S</button>
+          <button data-size="m">M</button>
+          <button data-size="l">L</button>
+          <button data-size="xl">XL</button>
+        </div>
+      </div>
+      <div class="mn-grid ${view==='both'?'both':'single'}">
+        ${view!=='inv'?`<div class="mn-col">${renderMd(manusPart)}</div>`:''}
+        ${view!=='manus'&&invPart?`<div class="mn-col">${renderMd(invPart)}</div>`:''}
+      </div>
+    </div>`;
+
+  main.querySelectorAll('.mn-tog').forEach(b=>b.onclick=()=>{S.mn.view=b.dataset.view;renderManus(main);});
+  main.querySelectorAll('.mn-size button').forEach(b=>b.onclick=()=>{S.mn.size=b.dataset.size;renderManus(main);});
 }
 
 function saRenderObjections(objs){
