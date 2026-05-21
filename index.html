@@ -5118,23 +5118,108 @@ function chatToggle(){
   panel.classList.toggle('show',chatState.open);
 }
 
+function chatFormatReply(text){
+  return esc(text).replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\[LYSSNA cdr=(\d+)\]/g,'<span style="background:var(--bluel);color:var(--blue);padding:1px 6px;border-radius:4px;font-size:11.5px;font-weight:600;">🎧 cdr $1</span>');
+}
+
+function chatRenderAudioRefs(msgs,audioRefs){
+  if(!audioRefs||!audioRefs.length)return;
+  audioRefs.forEach(ref=>{
+    const ap=document.createElement('div');
+    ap.className='ai-msg ai-msg-a';
+    ap.style.cssText='max-width:95%;background:var(--bg2);';
+    const mm=Math.floor((ref.duration_s||0)/60);
+    const ss=Math.floor((ref.duration_s||0)%60);
+    const dt=(ref.recorded_at||'').slice(0,16).replace('T',' ');
+    ap.innerHTML=`
+      <div style="font-size:11.5px;color:var(--mu);margin-bottom:6px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;">
+        <span><strong style="color:var(--gd);">cdr ${esc(ref.cdr_id)}</strong> · ${dt} · ${mm}:${ss<10?'0'+ss:ss}</span>
+        <span>${esc(ref.seller_name||'')} · ${esc(ref.status||'')}</span>
+      </div>
+      <audio controls preload="none" style="width:100%;height:34px;"><source src="${esc(ref.signed_url)}" type="audio/mpeg"></audio>
+      <div style="margin-top:6px;"><a href="#" data-rid="${esc(ref.recording_id)}" class="ai-open-report" style="font-size:11px;color:var(--g);text-decoration:none;font-weight:600;">📊 Öppna full rapport →</a></div>`;
+    msgs.appendChild(ap);
+  });
+  msgs.querySelectorAll('.ai-open-report').forEach(el=>{
+    el.onclick=(e)=>{e.preventDefault();
+      if(!S.sa)S.sa={};
+      S.sa.openId=el.dataset.rid;S.sa.detail=null;
+      S.tab='samtalsanalys';
+      document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));
+      document.querySelector('.sbi[data-tab="samtalsanalys"]')?.classList.add('active');
+      chatToggle();render();
+    };
+  });
+}
+
 async function chatSend(msg){
   msg=(msg||'').trim();if(!msg)return;
   const input=document.getElementById('ai-input');
   const send=document.getElementById('ai-send');
   const msgs=document.getElementById('ai-msgs');
   if(!msgs)return;
-  // User-meddelandet
   const u=document.createElement('div');u.className='ai-msg ai-msg-u';u.textContent=msg;msgs.appendChild(u);
   input.value='';send.disabled=true;
-  // Typing-indicator
   const typing=document.createElement('div');typing.className='ai-typing';typing.textContent='AI tänker...';msgs.appendChild(typing);
   msgs.scrollTop=msgs.scrollHeight;
+
+  const role=S.role||'saljare';
+  const userResult=await sb.auth.getUser();
+  const userId=userResult.data.user?.id;
+  const sellerId=S.seller?.id||null;
+
+  // STREAMING-läge
   try{
-    const role=S.role||'saljare';
-    const userResult=await sb.auth.getUser();
-    const userId=userResult.data.user?.id;
-    const sellerId=S.seller?.id||null;
+    const resp=await fetch('https://hfbhoufqvozbxkqlldzl.supabase.co/functions/v1/assistant',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg,session_id:chatState.sessionId,user_role:role,seller_id:sellerId,user_id:userId,stream:true})
+    });
+    if(!resp.ok){
+      typing.remove();
+      const a=document.createElement('div');a.className='ai-msg ai-msg-a';a.textContent='Fel: HTTP '+resp.status;msgs.appendChild(a);
+      send.disabled=false;return;
+    }
+    typing.remove();
+    const aDiv=document.createElement('div');aDiv.className='ai-msg ai-msg-a';msgs.appendChild(aDiv);
+    let fullText='',audioRefs=[],buf='';
+    const reader=resp.body.getReader();
+    const dec=new TextDecoder();
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop()||'';
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        try{
+          const o=JSON.parse(line.slice(6));
+          if(o.type==='text'){
+            fullText+=o.delta;
+            aDiv.innerHTML=chatFormatReply(fullText);
+            msgs.scrollTop=msgs.scrollHeight;
+          }else if(o.type==='done'){
+            audioRefs=o.audio_refs||[];
+            if(o.session_id)chatState.sessionId=o.session_id;
+          }else if(o.type==='error'){
+            aDiv.innerHTML+='<br><em style="color:var(--err);">Fel: '+esc(o.error)+'</em>';
+          }
+        }catch{}
+      }
+    }
+    chatRenderAudioRefs(msgs,audioRefs);
+    send.disabled=false;input.focus();
+    msgs.scrollTop=msgs.scrollHeight;
+    return;
+  }catch(e){
+    typing.remove();
+    const a=document.createElement('div');a.className='ai-msg ai-msg-a';a.textContent='Stream-fel: '+e.message+' — försök igen';msgs.appendChild(a);
+    send.disabled=false;return;
+  }
+
+  // (Fallback sync — kvarstår om streaming inte funkar i framtiden)
+  try{
     const resp=await fetch('https://hfbhoufqvozbxkqlldzl.supabase.co/functions/v1/assistant',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
