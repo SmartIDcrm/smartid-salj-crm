@@ -17,6 +17,42 @@
   --blue:#3B7DD8;--bluel:#E8F1FB;
   --purple:#7C5BC9;--purplel:#EFEAFC;
 }
+html[data-theme="dark"]{
+  --g:#2D9476;--gd:#E8F4EE;--gm:#3DA585;--gt:#5BC9A8;
+  --gold:#D4B85F;--w:#1F2A26;--bg:#161E1B;--bg2:#243029;
+  --br:#3A4A42;--tx:#E8F4EE;--mu:#9CB5A8;
+  --err:#E55B4E;--errl:#3A1F1C;
+  --warn:#F39C42;--warnl:#3A2A1A;
+  --blue:#5B95E0;--bluel:#1F2D40;
+  --purple:#9C7BD9;--purplel:#2A2138;
+}
+html[data-theme="dark"] body{background:var(--bg);color:var(--tx);}
+html[data-theme="dark"] .login-card{background:#243029;}
+html[data-theme="dark"] .login-card input,html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:var(--bg2);color:var(--tx);border-color:var(--br);}
+html[data-theme="dark"] .sb-snippet b{background:#5A4D1E;color:var(--tx);}
+html[data-theme="dark"] .mn-col blockquote{background:#2D2618;}
+html[data-theme="dark"] .sa-highlight{background:#1F3024;}
+html[data-theme="dark"] .sa-tip{background:var(--bg2);}
+html[data-theme="dark"] audio{filter:invert(.85) hue-rotate(180deg);}
+@media (max-width:900px){
+  :root{--sb:0;}
+  .sidebar{position:fixed;top:0;left:-260px;width:240px;height:100vh;z-index:100;transition:left .25s;box-shadow:0 0 30px rgba(0,0,0,.3);}
+  .sidebar.open{left:0;}
+  .topbar{padding:.45rem .8rem;}
+  .tb-breadcrumb{display:none;}
+  .tb-search{max-width:none;}
+  .ph,.ca{padding-left:1rem;padding-right:1rem;}
+  .kpi-grid{grid-template-columns:1fr 1fr;}
+  .sa-stats{grid-template-columns:1fr 1fr;}
+  .mn-grid.both{grid-template-columns:1fr;}
+  #v3-mobile-menu{display:flex;}
+  #ai-panel{width:100vw;height:100vh;bottom:0;right:0;max-height:100vh;border-radius:0;}
+  #ai-bubble{bottom:12px;right:12px;}
+}
+#v3-mobile-menu{display:none;width:38px;height:38px;border-radius:8px;border:none;background:transparent;cursor:pointer;align-items:center;justify-content:center;color:var(--gd);}
+#v3-mobile-menu:hover{background:var(--bg);}
+.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;}
+.mobile-overlay.show{display:block;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);font-size:14px;}
 
@@ -1044,8 +1080,12 @@ const TAB_TITLES={dashboard:'Dashboard',dagligt:'Daglig rapport',historik:'Histo
   bibliotek:'Bibliotek',kunskapsbas:'Kunskapsbas',mal:'Mål & Streak',tavlingar:'Tävlingar',
   team:'Lägg till säljare',teamstats:'Statistik säljare',allstats:'All statistik',kalender:'Kalender'};
 
+function updateThemeLabel(){const lbl=document.getElementById('pm-theme-label');if(!lbl)return;lbl.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'Ljust tema':'Mörkt tema';}
+
 function initV3Skal(){
-  if(document.getElementById('v3-topbar'))return;  // idempotent
+  // Återställ tema från localStorage
+  try{const t=localStorage.getItem('v3-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch{}
+  if(document.getElementById('v3-topbar')){updateThemeLabel();return;}  // idempotent
 
   // Topbar
   const main=document.getElementById('main');
@@ -1056,6 +1096,7 @@ function initV3Skal(){
   const initial=(alias[0]||'?').toUpperCase();
   const isCoach=S.role==='coach'||S.role==='admin'||S.role==='kundtjanst';
   tb.innerHTML=`
+    <button id="v3-mobile-menu" title="Meny"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg></button>
     <div class="tb-breadcrumb"><span>SmartID</span><span>›</span><b id="tb-crumb">Dashboard</b></div>
     <div class="tb-search">
       <span class="tb-search-ic">🔍</span>
@@ -1078,7 +1119,7 @@ function initV3Skal(){
       <div class="pm-meta">${esc((S.user&&S.user.email)||'')}</div>
     </div>
     <button class="pm-item" data-act="settings"><span class="pm-item-ic">⚙️</span> Inställningar</button>
-    <button class="pm-item" data-act="theme"><span class="pm-item-ic">🌗</span> Tema (kommer snart)</button>
+    <button class="pm-item" data-act="theme"><span class="pm-item-ic">🌗</span> <span id="pm-theme-label">Mörkt tema</span></button>
     <button class="pm-item" data-act="pw"><span class="pm-item-ic">🔑</span> Byt lösenord</button>
     <button class="pm-item" data-act="help"><span class="pm-item-ic">❓</span> Hjälp &amp; FAQ</button>
     <button class="pm-item" data-act="feedback"><span class="pm-item-ic">📣</span> Skicka feedback</button>
@@ -1132,7 +1173,7 @@ function initV3Skal(){
     if(act==='logout'){mlBack.classList.add('show');}
     else if(act==='pw'){if(typeof showChangePasswordModal==='function')showChangePasswordModal();}
     else if(act==='settings')alert('Inställningar kommer i nästa version.');
-    else if(act==='theme')alert('Mörkt tema kommer i nästa version.');
+    else if(act==='theme'){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',cur);try{localStorage.setItem('v3-theme',cur);}catch{}updateThemeLabel();}
     else if(act==='help')alert('Hjälp & FAQ kommer i nästa uppdatering.');
     else if(act==='feedback')alert('Skicka feedback till coach via Coachning-fliken.');
   });
@@ -1164,6 +1205,21 @@ function initV3Skal(){
     setTimeout(updateBellBadge,500);
     setInterval(updateBellBadge,5*60*1000);
   }
+
+  // Mobile-meny toggle
+  const mobBtn=tb.querySelector('#v3-mobile-menu');
+  if(mobBtn){
+    const overlay=document.createElement('div');overlay.className='mobile-overlay';document.body.appendChild(overlay);
+    mobBtn.onclick=()=>{document.querySelector('.sidebar').classList.toggle('open');overlay.classList.toggle('show');};
+    overlay.onclick=()=>{document.querySelector('.sidebar').classList.remove('open');overlay.classList.remove('show');};
+    // Stäng sidebar vid flikbyte på mobil
+    document.querySelector('.sidebar').addEventListener('click',e=>{
+      if(e.target.closest('.sbi')&&window.innerWidth<=900){
+        document.querySelector('.sidebar').classList.remove('open');overlay.classList.remove('show');
+      }
+    });
+  }
+  updateThemeLabel();
 }
 
 function openCommandPalette(){
