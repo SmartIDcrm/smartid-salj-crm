@@ -1158,6 +1158,12 @@ function initV3Skal(){
   // Uppdatera breadcrumb när fliken byts
   const origRender=window.render;
   window.render=function(){origRender.apply(this,arguments);const c=document.getElementById('tb-crumb');if(c){c.textContent=TAB_TITLES[S.tab]||S.tab;}};
+
+  // Ladda bell-badge initialt + var 5 min
+  if(isCoach){
+    setTimeout(updateBellBadge,500);
+    setInterval(updateBellBadge,5*60*1000);
+  }
 }
 
 function openCommandPalette(){
@@ -1241,19 +1247,74 @@ function execCpItem(it){
   }
 }
 
+function npGetRead(){try{return new Set(JSON.parse(localStorage.getItem('v3-np-read')||'[]'));}catch{return new Set();}}
+function npMarkRead(ids){const r=npGetRead();ids.forEach(i=>r.add(i));try{localStorage.setItem('v3-np-read',JSON.stringify([...r]));}catch{}}
+function npRelTime(t){if(!t)return '';const d=new Date(t),now=new Date(),diff=(now-d)/1000;
+  if(diff<60)return 'just nu';if(diff<3600)return Math.floor(diff/60)+' min sen';if(diff<86400)return Math.floor(diff/3600)+' h sen';return Math.floor(diff/86400)+' dgr sen';}
+
+async function buildNotifications(){
+  const items=[];
+  const today=new Date();today.setHours(0,0,0,0);
+  const todayISO=today.toISOString();
+  const isCoach=S.role==='coach'||S.role==='admin'||S.role==='kundtjanst';
+  try{
+    if(isCoach){
+      const {data:newCalls}=await sb.from('call_recordings').select('id,cdr_id,recorded_at').gte('recorded_at',todayISO).eq('analyzed',true).order('recorded_at',{ascending:false}).limit(20);
+      if(newCalls?.length)items.push({id:'analyzed-today',icon:'📊',txt:`<strong>${newCalls.length}</strong> nya AI-analyser idag`,time:npRelTime(newCalls[0].recorded_at),tab:'samtalsanalys'});
+      const {data:hr}=await sb.from('call_analysis').select('recording_id,processed_at').eq('regret_risk','high').gte('processed_at',todayISO).order('processed_at',{ascending:false}).limit(20);
+      if(hr?.length)items.push({id:'high-regret-today',icon:'⚠️',txt:`<strong>${hr.length}</strong> samtal med hög ångerrisk idag`,time:npRelTime(hr[0].processed_at),tab:'samtalsanalys'});
+      const {data:fb}=await sb.from('call_feedback').select('id,target_type,rating,created_at').gte('created_at',todayISO).order('created_at',{ascending:false}).limit(5);
+      if(fb?.length)items.push({id:'feedback-today',icon:'👍',txt:`<strong>${fb.length}</strong> nya feedback-markeringar gjorda idag`,time:npRelTime(fb[0].created_at)});
+    }
+    // Mål-milestones (alla)
+    const sellerId=S.seller?.id;
+    if(sellerId){
+      const ym=new Date().toISOString().slice(0,7);
+      const {data:goal}=await sb.from('salj_goals').select('*').eq('seller_id',sellerId).eq('ym',ym).maybeSingle();
+      if(goal){
+        const days=(S.dailyStats||[]).filter(d=>d.seller_id===sellerId&&String(d.date).slice(0,7)===ym);
+        const tot=f=>days.reduce((a,d)=>a+(d[f]||0),0);
+        const checks=[
+          {label:'Singel',cur:tot('sold_s189'),mal:goal.mal_singel,id:'mal-singel'},
+          {label:'Par',cur:tot('sold_s229'),mal:goal.mal_par,id:'mal-par'},
+          {label:'Familj',cur:tot('sold_s279'),mal:goal.mal_familj,id:'mal-familj'},
+        ];
+        for(const c of checks){
+          if(!c.mal)continue;
+          const pct=Math.floor((c.cur/c.mal)*100);
+          if(pct>=100)items.push({id:c.id+'-100',icon:'🏆',txt:`Du nådde <strong>${c.label}-målet</strong>! (${c.cur}/${c.mal})`,time:'idag',tab:'mal'});
+          else if(pct>=75)items.push({id:c.id+'-75',icon:'🎯',txt:`Du är <strong>${pct}%</strong> av ${c.label}-målet (${c.cur}/${c.mal})`,time:'idag',tab:'mal'});
+        }
+      }
+    }
+  }catch(e){console.warn('notif build err',e);}
+  return items;
+}
+
 async function loadNotifications(){
   const list=document.getElementById('np-list');if(!list)return;
-  const items=[];
-  try{
-    const today=new Date();today.setHours(0,0,0,0);
-    const {data:newCalls}=await sb.from('call_recordings').select('id,cdr_id').gte('recorded_at',today.toISOString()).eq('analyzed',true).limit(10);
-    if(newCalls?.length)items.push({txt:`📊 ${newCalls.length} nya AI-analyser idag`,time:'just nu',tab:'samtalsanalys'});
-    const {data:hr}=await sb.from('call_analysis').select('recording_id').eq('regret_risk','high').gte('processed_at',today.toISOString()).limit(10);
-    if(hr?.length)items.push({txt:`⚠ ${hr.length} samtal med hög ångerrisk identifierade idag`,time:'just nu',tab:'samtalsanalys'});
-  }catch(e){}
+  list.innerHTML='<div class="empty" style="padding:1.5rem;"><p style="font-size:12px;">Laddar…</p></div>';
+  const items=await buildNotifications();
+  // Markera alla som lästa när panelen öppnas
+  const ids=items.map(i=>i.id);
   if(!items.length){list.innerHTML='<div class="empty" style="padding:1.5rem;"><p style="font-size:12.5px;">Inga nya notiser</p></div>';return;}
-  list.innerHTML=items.map(it=>`<div class="np-item" data-tab="${esc(it.tab||'')}"><div>${it.txt}</div><div class="np-item-time">${esc(it.time)}</div></div>`).join('');
-  list.querySelectorAll('.np-item').forEach(el=>{el.onclick=()=>{const t=el.dataset.tab;if(t){S.tab=t;document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));document.querySelector(`.sbi[data-tab="${t}"]`)?.classList.add('active');render();}document.getElementById('v3-np').classList.remove('show');};});
+  list.innerHTML=items.map(it=>`<div class="np-item" data-tab="${esc(it.tab||'')}"><div><span style="margin-right:6px;">${it.icon}</span>${it.txt}</div><div class="np-item-time">${esc(it.time)}</div></div>`).join('');
+  list.querySelectorAll('.np-item').forEach(el=>{el.onclick=()=>{const t=el.dataset.tab;if(t){S.tab=t;document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));document.querySelector(`.sbi[data-tab="${t}"]`)?.classList.add('active');render();}document.getElementById('v3-np').classList.remove('show');npMarkRead(ids);updateBellBadge();};});
+  // Mark read efter 1.5s (så användaren hinner se badge minska)
+  setTimeout(()=>{npMarkRead(ids);updateBellBadge();},1500);
+}
+
+async function updateBellBadge(){
+  const bell=document.querySelector('#tb-bell');if(!bell)return;
+  bell.querySelectorAll('.tb-bell-badge').forEach(b=>b.remove());
+  const items=await buildNotifications();
+  const read=npGetRead();
+  const unread=items.filter(it=>!read.has(it.id));
+  if(unread.length){
+    const b=document.createElement('span');b.className='tb-bell-badge';
+    b.textContent=unread.length;
+    bell.appendChild(b);
+  }
 }
 
 async function updateSidebarBadges(){
