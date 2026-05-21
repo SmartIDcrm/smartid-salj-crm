@@ -4086,9 +4086,19 @@ async function renderSaDetail(main){
     try{
       const {data}=await sb.from('v_call_overview').select('*').eq('recording_id',S.sa.openId).maybeSingle();
       const {data:an}=await sb.from('call_analysis').select('*').eq('recording_id',S.sa.openId).maybeSingle();
-      S.sa.detail={...(data||{}),...(an||{})};
+      const {data:tr}=await sb.from('call_transcripts').select('utterances,text_full').eq('recording_id',S.sa.openId).maybeSingle();
+      const {data:rec}=await sb.from('call_recordings').select('storage_bucket,storage_path').eq('id',S.sa.openId).maybeSingle();
+      // Skapa signed URL för ljudet (1h TTL)
+      let audioUrl=null;
+      if(rec&&rec.storage_path){
+        try{
+          const {data:su}=await sb.storage.from(rec.storage_bucket||'adversus-recordings').createSignedUrl(rec.storage_path,3600);
+          audioUrl=su&&su.signedUrl||null;
+        }catch(e){console.warn('signed URL err',e);}
+      }
+      S.sa.detail={...(data||{}),...(an||{}),utterances:tr&&tr.utterances||[],text_full:tr&&tr.text_full||'',audio_url:audioUrl};
     }catch(e){console.error(e);}
-    if(S.sa.tab==='samtalsanalys')renderSaDetail(main);
+    if(S.tab==='samtalsanalys')renderSaDetail(main);
     return;
   }
   const d=S.sa.detail;
@@ -4105,6 +4115,28 @@ async function renderSaDetail(main){
         <span>Lead · <code>${esc(d.adversus_lead_id||'–')}</code></span>
         <span>Recording · <code>${esc(d.recording_id||'–').slice(0,8)}…</code></span>
       </div>
+
+      ${d.audio_url?`
+      <div class="sec">
+        <div class="sec-hdr"><h3>🎧 Lyssna på samtalet</h3><span style="font-size:11px;color:var(--mu);">Klicka på en rad i transkriptet för att hoppa</span></div>
+        <div class="sec-body">
+          <audio id="sa-audio" controls preload="metadata" style="width:100%;margin-bottom:1rem;">
+            <source src="${esc(d.audio_url)}" type="audio/mpeg">
+          </audio>
+          ${d.utterances&&d.utterances.length?`
+            <div class="sa-transcript-box" style="max-height:400px;overflow-y:auto;border:1px solid var(--br);border-radius:8px;background:var(--bg);padding:.5rem;">
+              ${d.utterances.map(u=>{
+                const m=Math.floor((u.start||0)/60), s=Math.floor((u.start||0)%60).toString().padStart(2,'0');
+                const role=u.channel===0?'sal':'kund';
+                return `<div class="sa-utt sa-utt-${role}" data-start="${u.start||0}" style="padding:5px 9px;border-radius:5px;margin-bottom:2px;cursor:pointer;display:flex;gap:10px;font-size:12.5px;line-height:1.5;${u.channel===0?'background:#EAF4EE;':'background:transparent;'}">
+                  <span style="font-family:monospace;color:var(--mu);min-width:42px;font-size:11px;">${m}:${s}</span>
+                  <span style="font-weight:600;color:${u.channel===0?'var(--g)':'var(--mu)'};min-width:60px;font-size:11px;text-transform:uppercase;">${u.channel===0?'säljare':'kund'}</span>
+                  <span style="flex:1;color:var(--tx);">${esc(u.text||'')}</span>
+                </div>`;
+              }).join('')}
+            </div>`:''}
+        </div>
+      </div>`:''}
 
       <div class="sec"><div class="sec-hdr"><h3>Sammanfattning</h3></div>
         <div class="sec-body">${d.summary?'<p style="line-height:1.6;">'+esc(d.summary)+'</p>':'<p style="color:var(--mu);">(ingen sammanfattning än)</p>'}</div></div>
@@ -4139,6 +4171,39 @@ async function renderSaDetail(main){
         <div class="sec-body">${saRenderActions(d.action_items)}</div></div>
     </div>`;
   main.querySelector('#sa-back').onclick=()=>{S.sa.openId=null;S.sa.detail=null;render();};
+
+  // Audio + transkript-sync
+  const audio=main.querySelector('#sa-audio');
+  if(audio){
+    main.querySelectorAll('.sa-utt').forEach(el=>{
+      el.onclick=()=>{
+        const t=parseFloat(el.dataset.start||'0');
+        if(isFinite(t)){audio.currentTime=t;audio.play();}
+      };
+      el.onmouseenter=()=>{el.style.outline='1px solid var(--gt)';};
+      el.onmouseleave=()=>{el.style.outline='none';};
+    });
+    // Highlighta aktuell rad medan ljudet spelar
+    audio.addEventListener('timeupdate',()=>{
+      const t=audio.currentTime;
+      let active=null;
+      main.querySelectorAll('.sa-utt').forEach(el=>{
+        const start=parseFloat(el.dataset.start||'0');
+        if(start<=t)active=el;
+        el.style.borderLeft='3px solid transparent';
+      });
+      if(active){
+        active.style.borderLeft='3px solid var(--gold)';
+        // Scrolla i transkript-boxen om aktuell rad är utanför vy
+        const box=main.querySelector('.sa-transcript-box');
+        if(box){
+          const r=active.getBoundingClientRect();
+          const b=box.getBoundingClientRect();
+          if(r.top<b.top||r.bottom>b.bottom)active.scrollIntoView({block:'center',behavior:'smooth'});
+        }
+      }
+    });
+  }
 }
 
 function saRenderCompliance(flags){
