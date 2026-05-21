@@ -542,6 +542,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="sbi" data-tab="ljudfiler"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v12"/><path d="M5 5v6"/><path d="M11 5v6"/><path d="M2 7v2"/><path d="M14 7v2"/></svg><span>Ljudfiler</span></button>
       <button class="sbi" data-tab="coachning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h12v8H6l-3 3z"/><path d="M5 6h6M5 8h4"/></svg><span>Coachning</span></button>
       <button class="sbi coach-only" data-tab="samtalsanalys"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a5 5 0 0 1 10 0"/><path d="M2 8v3a1 1 0 0 0 1 1h1V8"/><path d="M14 8v3a1 1 0 0 1-1 1h-1V8"/><circle cx="8" cy="13" r="1"/></svg><span>Samtalsanalys</span></button>
+      <button class="sbi coach-only" data-tab="bibliotek"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="3" height="11" rx="1"/><rect x="6" y="3" width="3" height="11" rx="1"/><rect x="10" y="3" width="3" height="11" rx="1"/><line x1="3" y1="6" x2="4" y2="6"/><line x1="7" y1="6" x2="8" y2="6"/><line x1="11" y1="6" x2="12" y2="6"/></svg><span>Bibliotek</span></button>
       <div class="sb-sec">Verktyg</div>
       <button class="sbi" data-tab="mal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg><span>Mål &amp; Streak</span></button>
       <button class="sbi" data-tab="tavlingar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2h6v3a3 3 0 0 1-6 0z"/><path d="M5 3H3v1a2 2 0 0 0 2 2"/><path d="M11 3h2v1a2 2 0 0 1-2 2"/><line x1="8" y1="8" x2="8" y2="11"/><path d="M5.5 14h5l-.5-3h-4z"/></svg><span>Tävlingar</span></button>
@@ -1039,6 +1040,7 @@ function render(){
   else if(S.tab==='ljudfiler')renderLjudfiler(main);
   else if(S.tab==='coachning')renderCoachning(main);
   else if(S.tab==='samtalsanalys')renderSamtalsanalys(main);
+  else if(S.tab==='bibliotek')renderBibliotek(main);
   else if(S.tab==='teamstats')renderTeamStats(main);
   else if(S.tab==='mal')renderMalV2(main);
   else if(S.tab==='kalender')renderKalender(main);
@@ -4383,6 +4385,132 @@ function saRenderHighlightsWithFb(hl,recordingId){
     ${h.text?'<div class="sa-tip-q">"'+esc(h.text)+'"</div>':''}
     ${saFbWidget(recordingId,'highlight',i)}
   </div>`).join('');
+}
+
+/* ============================================================
+   BIBLIOTEK — invändningar + träningsklipp (coach-only)
+   ============================================================ */
+async function renderBibliotek(main){
+  saInjectStyles();
+  if(S.role!=='coach'&&S.role!=='admin'&&S.role!=='kundtjanst'){
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Åtkomst nekad</div></div></div><div class="ca"><div class="empty"><p style="font-size:48px;">🔒</p><p>Endast tillgängligt för coach</p></div></div>`;
+    return;
+  }
+  if(!S.bib)S.bib={tab:'inv',filterSeller:'',filterOutcome:'',rows:[]};
+  const tab=S.bib.tab;
+
+  main.innerHTML=`
+    <div class="ph">
+      <div><div class="ph-t">📚 Bibliotek</div><div class="ph-s">Auto-byggd från alla analyserade samtal</div></div>
+    </div>
+    <div class="ca">
+      <div class="sa-toolbar">
+        <div class="sa-flt">
+          <label>Vy</label>
+          <select id="bib-tab">
+            <option value="inv"${tab==='inv'?' selected':''}>Invändningar (${tab==='inv'?'aktiv':'klicka'})</option>
+            <option value="hl"${tab==='hl'?' selected':''}>Bra moment (träningsklipp)</option>
+          </select>
+        </div>
+        <div class="sa-flt"><label>Säljare</label><select id="bib-seller"><option value="">Alla</option>${(S.allSellers||[]).map(s=>`<option value="${s.id}"${s.id===S.bib.filterSeller?' selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+        ${tab==='inv'?`<div class="sa-flt"><label>Utfall</label><select id="bib-outcome"><option value="">Alla</option><option value="overcame"${S.bib.filterOutcome==='overcame'?' selected':''}>Övervunnen</option><option value="partially"${S.bib.filterOutcome==='partially'?' selected':''}>Delvis</option><option value="failed"${S.bib.filterOutcome==='failed'?' selected':''}>Misslyckad</option></select></div>`:''}
+        <button class="btn btn-p" id="bib-go">Ladda</button>
+      </div>
+      <div id="bib-stats" class="sa-stats"></div>
+      <div id="bib-results"><div class="empty"><p>Laddar…</p></div></div>
+    </div>`;
+
+  main.querySelector('#bib-tab').onchange=(e)=>{S.bib.tab=e.target.value;renderBibliotek(main);};
+  main.querySelector('#bib-go').onclick=()=>loadBibliotek(main);
+  await loadBibliotek(main);
+}
+
+async function loadBibliotek(main){
+  const sellerSel=main.querySelector('#bib-seller');
+  const outcomeSel=main.querySelector('#bib-outcome');
+  if(sellerSel)S.bib.filterSeller=sellerSel.value;
+  if(outcomeSel)S.bib.filterOutcome=outcomeSel.value;
+
+  const wrap=main.querySelector('#bib-results');
+  wrap.innerHTML='<div class="empty"><p>Laddar…</p></div>';
+  try{
+    if(S.bib.tab==='inv'){
+      const {data}=await sb.rpc('objection_library',{
+        filter_outcome:S.bib.filterOutcome||null,
+        filter_seller_id:S.bib.filterSeller||null,
+        filter_from:null,filter_to:null,page_limit:200
+      });
+      renderBibObjections(main,data||[]);
+    }else{
+      const {data}=await sb.rpc('highlight_library',{
+        filter_category:null,filter_seller_id:S.bib.filterSeller||null,
+        min_quality:0.4,page_limit:100
+      });
+      renderBibHighlights(main,data||[]);
+    }
+  }catch(e){wrap.innerHTML=`<div class="notice warn">Fel: ${esc(e.message)}</div>`;}
+}
+
+function renderBibObjections(main,rows){
+  const stats=main.querySelector('#bib-stats');
+  const out={overcame:0,partially:0,failed:0,other:0};
+  rows.forEach(r=>{const o=(r.outcome||'').toLowerCase();if(out[o]!==undefined)out[o]++;else out.other++;});
+  stats.innerHTML=`
+    <div class="sa-stat"><div class="sa-stat-l">Totalt</div><div class="sa-stat-v">${rows.length}</div></div>
+    <div class="sa-stat"><div class="sa-stat-l">✅ Övervunna</div><div class="sa-stat-v">${out.overcame}</div></div>
+    <div class="sa-stat"><div class="sa-stat-l">~ Delvis</div><div class="sa-stat-v">${out.partially}</div></div>
+    <div class="sa-stat"><div class="sa-stat-l">❌ Misslyckade</div><div class="sa-stat-v">${out.failed}</div></div>
+    <div class="sa-stat"><div class="sa-stat-l">Hit-rate</div><div class="sa-stat-v">${rows.length?Math.round(out.overcame/rows.length*100)+'%':'–'}</div></div>`;
+  const wrap=main.querySelector('#bib-results');
+  if(!rows.length){wrap.innerHTML='<div class="empty"><p>Inga invändningar hittade</p></div>';return;}
+  wrap.innerHTML=`<table class="sa-table"><thead><tr>
+    <th>Datum</th><th>Säljare</th><th>Tid</th><th>Kunden sa</th><th>Säljarens hantering</th><th>Utfall</th><th></th>
+  </tr></thead><tbody>${rows.map(r=>{
+    const oc=r.outcome||'';
+    const ocClass=oc==='overcame'?'sa-b-ja':oc==='failed'?'sa-b-nej':'sa-b-cb';
+    return `<tr>
+      <td style="white-space:nowrap;">${esc((r.recorded_at||'').slice(0,10))}</td>
+      <td>${esc(r.seller_name||'?')}</td>
+      <td style="font-family:monospace;font-size:11px;">${esc(r.time_mmss||'')}</td>
+      <td style="max-width:280px;">${esc(r.obj_text||'')}</td>
+      <td style="max-width:340px;">${esc(r.handling||'')}</td>
+      <td><span class="sa-badge ${ocClass}">${esc(oc||'–')}</span></td>
+      <td><a href="#" class="bib-open" data-rid="${esc(r.recording_id)}" style="font-size:11px;color:var(--g);font-weight:600;">→</a></td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+  wireBibOpen(main);
+}
+
+function renderBibHighlights(main,rows){
+  const stats=main.querySelector('#bib-stats');
+  const cats={};rows.forEach(r=>{cats[r.category||'other']=(cats[r.category||'other']||0)+1;});
+  stats.innerHTML=`<div class="sa-stat"><div class="sa-stat-l">Totalt</div><div class="sa-stat-v">${rows.length}</div></div>`+
+    Object.entries(cats).map(([k,v])=>`<div class="sa-stat"><div class="sa-stat-l">${esc(k)}</div><div class="sa-stat-v">${v}</div></div>`).join('');
+  const wrap=main.querySelector('#bib-results');
+  if(!rows.length){wrap.innerHTML='<div class="empty"><p>Inga bra moment hittade</p></div>';return;}
+  wrap.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">${rows.map(r=>`
+    <div class="sa-highlight" style="margin-bottom:0;">
+      <div style="font-size:11px;font-weight:700;color:var(--g);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">
+        ${esc(r.category||'')} · q=${r.call_quality_score||'–'} · ${esc(r.seller_name||'?')} · ${esc((r.recorded_at||'').slice(0,10))} · ${esc(r.time_mmss||'')}
+      </div>
+      <div style="font-size:13px;line-height:1.55;margin-bottom:6px;">${esc(r.why_good||'')}</div>
+      ${r.text_quote?'<div class="sa-tip-q">"'+esc(r.text_quote)+'"</div>':''}
+      <div style="margin-top:8px;"><a href="#" class="bib-open" data-rid="${esc(r.recording_id)}" style="font-size:11px;color:var(--g);font-weight:600;">📊 Öppna full rapport →</a></div>
+    </div>`).join('')}</div>`;
+  wireBibOpen(main);
+}
+
+function wireBibOpen(main){
+  main.querySelectorAll('.bib-open').forEach(a=>{
+    a.onclick=(e)=>{e.preventDefault();
+      if(!S.sa)S.sa={};
+      S.sa.openId=a.dataset.rid;S.sa.detail=null;
+      S.tab='samtalsanalys';
+      document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('active'));
+      document.querySelector('.sbi[data-tab="samtalsanalys"]')?.classList.add('active');
+      render();
+    };
+  });
 }
 
 /* ============================================================
