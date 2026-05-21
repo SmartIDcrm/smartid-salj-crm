@@ -543,6 +543,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="sbi" data-tab="coachning"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h12v8H6l-3 3z"/><path d="M5 6h6M5 8h4"/></svg><span>Coachning</span></button>
       <button class="sbi coach-only" data-tab="samtalsanalys"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a5 5 0 0 1 10 0"/><path d="M2 8v3a1 1 0 0 0 1 1h1V8"/><path d="M14 8v3a1 1 0 0 1-1 1h-1V8"/><circle cx="8" cy="13" r="1"/></svg><span>Samtalsanalys</span></button>
       <button class="sbi coach-only" data-tab="bibliotek"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="3" height="11" rx="1"/><rect x="6" y="3" width="3" height="11" rx="1"/><rect x="10" y="3" width="3" height="11" rx="1"/><line x1="3" y1="6" x2="4" y2="6"/><line x1="7" y1="6" x2="8" y2="6"/><line x1="11" y1="6" x2="12" y2="6"/></svg><span>Bibliotek</span></button>
+      <button class="sbi coach-only" data-tab="kunskapsbas"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 2h7l3 3v9H3z"/><path d="M10 2v3h3"/><circle cx="6" cy="9" r="1"/><circle cx="6" cy="11.5" r="1"/><line x1="8" y1="9" x2="11" y2="9"/><line x1="8" y1="11.5" x2="11" y2="11.5"/></svg><span>Kunskapsbas</span></button>
       <div class="sb-sec">Verktyg</div>
       <button class="sbi" data-tab="mal"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg><span>Mål &amp; Streak</span></button>
       <button class="sbi" data-tab="tavlingar"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2h6v3a3 3 0 0 1-6 0z"/><path d="M5 3H3v1a2 2 0 0 0 2 2"/><path d="M11 3h2v1a2 2 0 0 1-2 2"/><line x1="8" y1="8" x2="8" y2="11"/><path d="M5.5 14h5l-.5-3h-4z"/></svg><span>Tävlingar</span></button>
@@ -1041,6 +1042,7 @@ function render(){
   else if(S.tab==='coachning')renderCoachning(main);
   else if(S.tab==='samtalsanalys')renderSamtalsanalys(main);
   else if(S.tab==='bibliotek')renderBibliotek(main);
+  else if(S.tab==='kunskapsbas')renderKunskapsbas(main);
   else if(S.tab==='teamstats')renderTeamStats(main);
   else if(S.tab==='mal')renderMalV2(main);
   else if(S.tab==='kalender')renderKalender(main);
@@ -4385,6 +4387,128 @@ function saRenderHighlightsWithFb(hl,recordingId){
     ${h.text?'<div class="sa-tip-q">"'+esc(h.text)+'"</div>':''}
     ${saFbWidget(recordingId,'highlight',i)}
   </div>`).join('');
+}
+
+/* ============================================================
+   KUNSKAPSBAS — ladda upp dokument som AI lär sig av (coach-only)
+   ============================================================ */
+async function renderKunskapsbas(main){
+  saInjectStyles();
+  if(S.role!=='coach'&&S.role!=='admin'&&S.role!=='kundtjanst'){
+    main.innerHTML=`<div class="ph"><div><div class="ph-t">Åtkomst nekad</div></div></div><div class="ca"><div class="empty"><p style="font-size:48px;">🔒</p><p>Endast tillgängligt för coach</p></div></div>`;
+    return;
+  }
+  if(!S.kb)S.kb={editing:null,docs:[]};
+
+  // Hämta alla docs
+  try{const {data}=await sb.from('knowledge_base').select('id,title,source_type,content,tags,active,source_doc,created_at,updated_at').order('created_at',{ascending:false});S.kb.docs=data||[];}catch(e){console.error(e);}
+
+  const e=S.kb.editing||{};
+  const isNew=!e.id;
+
+  main.innerHTML=`
+    <div class="ph">
+      <div><div class="ph-t">📚 Kunskapsbas</div><div class="ph-s">Dokument som AI-coachen och chatboten har tillgång till</div></div>
+      <button class="btn btn-p" id="kb-new">+ Lägg till dokument</button>
+    </div>
+    <div class="ca">
+      <div class="notice" style="background:var(--bluel);border-left:3px solid var(--blue);">
+        💡 AI:n får tillgång till allt aktivt material här när den analyserar samtal eller svarar i chatten. Ladda upp manus, produktinfo, utbildningsmaterial — allt blir genast tillgängligt.
+      </div>
+
+      ${S.kb.editing?`
+      <div class="sec">
+        <div class="sec-hdr"><h3>${isNew?'➕ Nytt dokument':'✏️ Redigera dokument'}</h3>
+          <div><button class="btn-s" id="kb-cancel">Avbryt</button> <button class="btn btn-p" id="kb-save">💾 Spara</button></div>
+        </div>
+        <div class="sec-body" style="display:grid;gap:.8rem;">
+          <div><label style="font-size:11px;color:var(--mu);text-transform:uppercase;font-weight:600;">Titel *</label>
+            <input type="text" id="kb-title" value="${esc(e.title||'')}" placeholder="t.ex. Skydda Min Adress — produktinfo" style="width:100%;padding:8px 10px;border:1px solid var(--br);border-radius:6px;">
+          </div>
+          <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:180px;"><label style="font-size:11px;color:var(--mu);text-transform:uppercase;font-weight:600;">Typ *</label>
+              <select id="kb-type" style="width:100%;padding:8px;border:1px solid var(--br);border-radius:6px;">
+                <option value="manus"${e.source_type==='manus'?' selected':''}>Säljmanus</option>
+                <option value="invandning"${e.source_type==='invandning'?' selected':''}>Invändningshantering</option>
+                <option value="produkt"${e.source_type==='produkt'?' selected':''}>Produktinformation</option>
+                <option value="utbildning"${e.source_type==='utbildning'?' selected':''}>Utbildningsmaterial</option>
+                <option value="lesson_learned"${e.source_type==='lesson_learned'?' selected':''}>Lessons learned</option>
+                <option value="company_info"${e.source_type==='company_info'?' selected':''}>Företagsinformation</option>
+                <option value="annat"${e.source_type==='annat'?' selected':''}>Annat</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:180px;"><label style="font-size:11px;color:var(--mu);text-transform:uppercase;font-weight:600;">Källfil (frivilligt)</label>
+              <input type="text" id="kb-source" value="${esc(e.source_doc||'')}" placeholder="t.ex. ProduktPM_2026.docx" style="width:100%;padding:8px 10px;border:1px solid var(--br);border-radius:6px;">
+            </div>
+          </div>
+          <div><label style="font-size:11px;color:var(--mu);text-transform:uppercase;font-weight:600;">Tags (kommaseparerad)</label>
+            <input type="text" id="kb-tags" value="${esc((e.tags||[]).join(', '))}" placeholder="t.ex. premium, dolda-adress, prislista" style="width:100%;padding:8px 10px;border:1px solid var(--br);border-radius:6px;">
+          </div>
+          <div><label style="font-size:11px;color:var(--mu);text-transform:uppercase;font-weight:600;">Ladda upp textfil/markdown</label>
+            <input type="file" id="kb-file" accept=".md,.txt,.markdown" style="margin-top:4px;">
+            <small style="color:var(--mu);">Eller klistra in innehåll direkt nedan. PDF/docx: konvertera till text först.</small>
+          </div>
+          <div><label style="font-size:11px;color:var(--mu);text-transform:uppercase;font-weight:600;">Innehåll *</label>
+            <textarea id="kb-content" placeholder="Klistra in eller skriv dokumentets innehåll här. Markdown stöds." style="width:100%;height:300px;padding:10px;border:1px solid var(--br);border-radius:6px;font-family:'SF Mono',Consolas,monospace;font-size:12.5px;resize:vertical;">${esc(e.content||'')}</textarea>
+          </div>
+        </div>
+      </div>`:''}
+
+      <div class="sec" style="margin-top:1rem;">
+        <div class="sec-hdr"><h3>Befintliga dokument (${S.kb.docs.length})</h3></div>
+        <div class="sec-body">
+          ${S.kb.docs.length?`<table class="sa-table"><thead><tr>
+            <th>Titel</th><th>Typ</th><th>Storlek</th><th>Tags</th><th>Aktiv</th><th>Skapad</th><th></th>
+          </tr></thead><tbody>${S.kb.docs.map(d=>`<tr>
+            <td><strong>${esc(d.title)}</strong>${d.source_doc?'<div style="font-size:11px;color:var(--mu);">'+esc(d.source_doc)+'</div>':''}</td>
+            <td><span class="sa-badge">${esc(d.source_type)}</span></td>
+            <td style="white-space:nowrap;">${d.content?Math.round(d.content.length/1024)+' KB':'?'}</td>
+            <td style="font-size:11px;">${(d.tags||[]).map(t=>'<span class="sa-badge" style="margin-right:3px;">'+esc(t)+'</span>').join('')}</td>
+            <td>${d.active?'<span class="sa-badge sa-b-ja">Ja</span>':'<span class="sa-badge sa-b-nej">Nej</span>'}</td>
+            <td style="font-size:11px;">${esc((d.created_at||'').slice(0,10))}</td>
+            <td><a href="#" data-id="${d.id}" class="kb-edit" style="color:var(--g);font-weight:600;font-size:12px;">Redigera</a> · <a href="#" data-id="${d.id}" data-active="${d.active}" class="kb-toggle" style="color:var(--mu);font-size:12px;">${d.active?'Inaktivera':'Aktivera'}</a></td>
+          </tr>`).join('')}</tbody></table>`:'<div class="empty"><p>Inga dokument ännu. Klicka "+ Lägg till".</p></div>'}
+        </div>
+      </div>
+    </div>`;
+
+  main.querySelector('#kb-new').onclick=()=>{S.kb.editing={title:'',source_type:'utbildning',content:'',tags:[]};renderKunskapsbas(main);};
+  main.querySelectorAll('.kb-edit').forEach(a=>a.onclick=async(e)=>{e.preventDefault();
+    const {data}=await sb.from('knowledge_base').select('*').eq('id',a.dataset.id).maybeSingle();
+    if(data)S.kb.editing=data;renderKunskapsbas(main);
+  });
+  main.querySelectorAll('.kb-toggle').forEach(a=>a.onclick=async(e)=>{e.preventDefault();
+    const newActive=a.dataset.active!=='true';
+    await sb.from('knowledge_base').update({active:newActive,updated_at:new Date().toISOString()}).eq('id',a.dataset.id);
+    renderKunskapsbas(main);
+  });
+  if(S.kb.editing){
+    main.querySelector('#kb-cancel').onclick=()=>{S.kb.editing=null;renderKunskapsbas(main);};
+    main.querySelector('#kb-file').onchange=async(ev)=>{
+      const f=ev.target.files[0];if(!f)return;
+      const txt=await f.text();
+      main.querySelector('#kb-content').value=txt;
+      if(!main.querySelector('#kb-title').value)main.querySelector('#kb-title').value=f.name.replace(/\.(md|txt|markdown)$/i,'');
+      if(!main.querySelector('#kb-source').value)main.querySelector('#kb-source').value=f.name;
+    };
+    main.querySelector('#kb-save').onclick=async()=>{
+      const title=main.querySelector('#kb-title').value.trim();
+      const content=main.querySelector('#kb-content').value.trim();
+      if(!title||!content){alert('Titel och innehåll krävs');return;}
+      const payload={
+        title, source_type:main.querySelector('#kb-type').value,
+        content, source_doc:main.querySelector('#kb-source').value.trim()||null,
+        tags:main.querySelector('#kb-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
+        active:true, updated_at:new Date().toISOString(),
+        uploaded_by:(await sb.auth.getUser()).data.user?.id
+      };
+      try{
+        if(S.kb.editing.id){await sb.from('knowledge_base').update(payload).eq('id',S.kb.editing.id);}
+        else{await sb.from('knowledge_base').insert(payload);}
+        S.kb.editing=null;renderKunskapsbas(main);
+      }catch(e){alert('Fel: '+e.message);}
+    };
+  }
 }
 
 /* ============================================================
